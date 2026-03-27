@@ -2,54 +2,63 @@
 
 ---
 
-## Person A — Backend / AI / Agents
+## Current Status (as of 2026-03-27)
+
+### Person A (Backend) — DONE ✅
+- Express + TypeScript + Postgres deployed on Railway
+- Conversational onboarding (`/api/onboard/chat` + `/api/onboard/complete`)
+- Agentic tutor with full Claude tool use loop (`/api/tutor/message`)
+- Add subject for existing student (`/api/tutor/add`)
+- Student memory read/write in Postgres JSONB
+- XP + streak tracking
+
+### Person A (Backend) — TODO
+- [ ] `GET /api/study-path/:studentId` ← **build this next**
+- [ ] `POST /api/tts` (ElevenLabs voice responses)
+
+### Person B (Frontend) — TODO (everything)
+- [ ] Project setup (Vite + React + TypeScript + Tailwind)
+- [ ] Landing page
+- [ ] Onboarding chat UI
+- [ ] Dashboard (subject cards)
+- [ ] Tutor chat page + agent sidebar
+
+---
+
+## Person A — Backend / AI (you are here)
 
 **Owns:** `backend/` entirely
 
-### Priority Order (build in this order)
+### Next: GET /api/study-path/:studentId
 
-**Hour 0-1: Project setup + Railway deploy**
-- [ ] Deploy OpenClaw to Railway via one-click: `railway.com/deploy/openclaw-complete-setup`
-  - Set `ANTHROPIC_API_KEY` in OpenClaw Railway service env vars
-  - Set `OPENCLAW_GATEWAY_TOKEN` (create a random secret, save it)
-  - Enable persistent volume at `/data`
-  - Note the Railway domain: `https://openclaw-xxx.up.railway.app`
-- [ ] Init Node.js + Express + TypeScript in `backend/`
-- [ ] Install: `@anthropic-ai/sdk`, `elevenlabs`, `zod`, `express`, `cors`, `dotenv`
-- [ ] Create `.env.example` with: `ANTHROPIC_API_KEY`, `ELEVENLABS_API_KEY`, `OPENCLAW_URL`, `OPENCLAW_TOKEN`, `PORT=3001`
-- [ ] Set up `backend/api/index.ts` with Express app and CORS for `localhost:5173` and Vercel domain
-- [ ] Connect backend repo to Railway as second service (root dir: `backend/`)
-- [ ] Health check: `GET /health` returns `{ status: 'ok', openclaw: 'connected' }`
+Returns all subjects + roadmap nodes + XP + streak for the dashboard.
 
-**Hour 1-3: Core agents**
-- [ ] Write system prompts in `backend/prompts/orchestrator.ts`
-- [ ] Write system prompts in `backend/prompts/tutors/math.ts` (template for all subjects)
-- [ ] Write system prompt in `backend/prompts/assessment.ts`
-- [ ] Build `POST /api/onboard` → calls Claude with structured output → returns `OnboardResponse`
-- [ ] Build `POST /api/tutor/message` → Orchestrator routes to subject tutor → returns `TutorMessageResponse`
+Until this is live, Person B reads from `localStorage('studyPath')` as fallback.
 
-**Hour 3-5: Memory + OpenClaw**
-- [ ] Set up OpenClaw locally, configure Claude API key in OpenClaw
-- [ ] Build `backend/memory/client.ts` — read/write helpers for OpenClaw memory
-- [ ] Build `backend/skills/exam-reminder.ts` — OpenClaw cron skill for Telegram
-- [ ] Build `backend/skills/session-log.ts` — logs every session to OpenClaw memory
-- [ ] Wire memory reads into agent prompts (inject student context)
-- [ ] Build `GET /api/memory/:studentId`
+**What to return:**
+```typescript
+{
+  studentId: string
+  studyPath: RoadmapNode[]
+  xp: number
+  level: number       // xp / 100, floored
+  streak: number
+  nextExam: { subject: string, date: string, daysLeft: number } | null
+  todaysFocus: { subject: string, topic: string, reason: string }
+}
+```
 
-**Hour 5-7: Study path + assessment**
-- [ ] Build `GET /api/study-path/:studentId` — reads memory + recalculates roadmap
-- [ ] Build `POST /api/assessment/start` — spawns assessment agent
-- [ ] Build `POST /api/assessment/submit` — evaluates answers, updates memory
+Read from Postgres `students` table. Calculate `daysLeft` from `memory.examDates`.
+Pick `todaysFocus` = subject with soonest exam, first available roadmap node.
 
-**Hour 7-8: Voice**
-- [ ] Build `POST /api/tts` — calls ElevenLabs, returns audio/mpeg
-- [ ] Test end-to-end voice pipeline with frontend
+### After that: POST /api/tts
 
-**Hour 8+: Polish**
-- [ ] Add `agentActivity[]` events to all responses
-- [ ] Add XP calculation logic (50 XP per session, 100 for assessment, bonus for streak)
-- [ ] Test Telegram reminder fires correctly
-- [ ] Error handling for all routes
+ElevenLabs text-to-speech. Returns `audio/mpeg`.
+
+```typescript
+// Request: { text: string, voice?: string }
+// Response: audio/mpeg binary
+```
 
 ---
 
@@ -57,66 +66,57 @@
 
 **Owns:** `frontend/` entirely
 
-### Priority Order (build in this order)
-
-**Hour 0-1: Project setup**
-- [ ] Init Vite + React + TypeScript in `frontend/`
+### Setup
+- [ ] Init Vite + React + TypeScript
 - [ ] Install: `tailwindcss`, `shadcn/ui`, `framer-motion`, `react-router-dom`, `axios`
-- [ ] Configure Tailwind with dark mode (`class` strategy)
-- [ ] Add CSS variables for design tokens from `docs/design-system.md`
-- [ ] Set up React Router with routes: `/`, `/onboarding`, `/dashboard`, `/tutor/:subject`
-- [ ] Create `frontend/src/lib/api.ts` — typed API client (all fetch calls live here, uses `VITE_API_URL`)
+- [ ] Configure Tailwind dark mode (`class` strategy)
+- [ ] Design tokens from `docs/design-system.md` as CSS vars
+- [ ] React Router: `/`, `/onboarding`, `/dashboard`, `/tutor/:subject`
+- [ ] `frontend/src/lib/api.ts` — all API calls here, uses `VITE_API_URL`
 
-**Hour 1-3: Onboarding + Landing**
-- [ ] Build multi-step onboarding form (`/onboarding`) — 4 steps as per design-system.md
-- [ ] On submit: call `POST /api/onboard`, store `studentId` in localStorage, redirect to `/dashboard`
-- [ ] Build landing page (`/`) — hero section + "how it works" + CTA button → `/onboarding`
-- [ ] Dark mode toggle component (top right)
+### Onboarding (`/onboarding`)
+- [ ] Check `localStorage('studentId')`:
+  - No studentId → new student flow (ask name first, then chat)
+  - Has studentId → add subject flow (skip name, same chat, call `/api/tutor/add`)
+- [ ] Chat loop: call `POST /api/onboard/chat` on each message, grow `messages[]`
+- [ ] When `done: true`: show optional syllabus textarea → call `/api/onboard/complete`
+- [ ] Save `studentId` + `studentName` + `studyPath` to localStorage → redirect `/dashboard`
 
-**Hour 3-5: Dashboard**
-- [ ] Build dashboard layout (sidebar + main)
-- [ ] Roadmap visualization component — nodes from `RoadmapNode[]`, status colors from design-system.md
-- [ ] XP bar + level indicator
-- [ ] Streak counter
-- [ ] "Today's Focus" card
-- [ ] Connect to `GET /api/study-path/:studentId`
+### Dashboard (`/dashboard`)
+- [ ] Read `studyPath` from localStorage (until `GET /api/study-path` is live)
+- [ ] Group nodes by subject → one card per subject
+- [ ] Each card: subject name, exam date, progress (X/Y nodes), `[Open tutor →]` button
+- [ ] `+ Add new subject` card → navigates to `/onboarding`
+- [ ] Show XP total (read from localStorage or response)
 
-**Hour 5-7: Tutor Page**
-- [ ] Build tutor page layout (chat + agent activity sidebar)
-- [ ] Chat message list component (user + AI messages)
-- [ ] Text input + send button
-- [ ] Connect to `POST /api/tutor/message`
-- [ ] Agent Activity sidebar — renders `AgentActivity[]` from each response
-- [ ] Voice: mic button using Web Speech API → sends transcript to tutor API
-- [ ] Voice: auto-play audio from `POST /api/tts` after each tutor response
+### Tutor (`/tutor/:subject`)
+- [ ] Two-column layout: chat left, agent activity sidebar right
+- [ ] Send message → `POST /api/tutor/message` with full `sessionHistory`
+- [ ] Render `agentActivity[]` in sidebar as `[agent] action` lines
+- [ ] Add `xpGained` to running XP display
+- [ ] Mic button: Web Speech API → transcript → send as message (browser native, no backend)
 
-**Hour 7-8: Polish**
-- [ ] Framer Motion animations (page transitions, node completion, badge earned)
-- [ ] Badge notification popup when `newBadge` is in response
-- [ ] Loading states for all API calls
-- [ ] Error states (what to show when backend is down)
-- [ ] Responsive layout check
+### Design tokens (from `docs/design-system.md`):
+```
+primary:  #F59E0B  (gold — CTAs, highlights)
+bgDark:   #0F172A  (charcoal — dark mode bg)
+bgLight:  #F8FAFC  (soft white — light mode bg)
+green:    #22C55E  (progress, completed nodes)
+purple:   #8B5CF6  (AI features, agent sidebar)
+blue:     #3B82F6  (info, links)
+```
 
 ---
 
-## Shared Touchpoints (coordinate here)
-
-These are the only moments you need to sync:
+## Shared Touchpoints (sync here)
 
 | When | What |
 |---|---|
-| Hour 1 | Agree that backend health check works on `localhost:3001/health` |
-| Hour 2 | Person A shares exact `OnboardResponse` shape — Person B updates frontend form submit handler |
-| Hour 4 | Person A deploys `/api/study-path` — Person B connects dashboard |
-| Hour 5 | Person A deploys `/api/tutor/message` — Person B connects chat |
-| Hour 7 | Person A deploys `/api/tts` — Person B connects voice playback |
-| Hour 8 | Full demo run-through together, fix integration bugs |
+| Now | Person A: confirm `/api/onboard/chat`, `/api/tutor/message` work via curl |
+| Next | Person A ships `GET /api/study-path` → Person B connects dashboard |
+| After | Person A ships `POST /api/tts` → Person B connects voice playback |
+| End | Full demo run-through, fix integration bugs |
 
----
+**If shapes don't match → update `shared/types.ts` + `docs/api-contract.md` together.**
 
-## Before Each Sync
-
-Person A: confirm the endpoint is running and returning the shape from `docs/api-contract.md`
-Person B: confirm the frontend is sending the request shape from `docs/api-contract.md`
-
-If shapes don't match → update `shared/types.ts` + `docs/api-contract.md` together.
+Reference doc for Person B: `docs/current-state.md` — full API shapes with TypeScript examples.

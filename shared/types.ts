@@ -74,6 +74,7 @@ export interface TutorMessageRequest {
   subject: string
   message: string
   voiceMode: boolean
+  sessionHistory: OnboardChatMessage[]  // full conversation so far, empty on first message
   sessionId?: string
 }
 
@@ -203,13 +204,16 @@ export interface OnboardResponse {
   nextFocus: string
 }
 
-// Legacy — kept for backwards compatibility
-export interface OnboardRequest {
-  name: string
-  subjects: string[]
-  examDates: ExamDate[]
-  goals: string
-  studyHoursPerDay: number
+// POST /api/tutor/add — existing student adds a new subject
+export interface AddSubjectRequest {
+  studentId: string
+  extracted: ExtractedOnboardData
+  syllabus?: string
+}
+
+export interface AddSubjectResponse {
+  studyPath: RoadmapNode[]   // new subject nodes only
+  nextFocus: string
 }
 
 // ─── TTS ──────────────────────────────────────────────────────────────────────
@@ -223,6 +227,6 @@ export interface TTSRequest {
 
 export interface APIError {
   error: string
-  code: 'STUDENT_NOT_FOUND' | 'INVALID_SUBJECT' | 'AGENT_ERROR' | 'MEMORY_UNAVAILABLE' | 'VALIDATION_ERROR'
+  code: 'STUDENT_NOT_FOUND' | 'INVALID_SUBJECT' | 'AGENT_ERROR' | 'VALIDATION_ERROR'
   status: number
 }
