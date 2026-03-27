@@ -1,10 +1,26 @@
 # API Contract
 
 **Base URL (dev):** `http://localhost:3001`
+**Base URL (prod):** `https://hackatonhoiv-production.up.railway.app`
 **All types:** defined in `shared/types.ts` — import from there, never redefine.
 
 This document is the single source of truth between frontend and backend.
 If you change an endpoint, update this doc and `shared/types.ts` in the same PR.
+
+---
+
+## Status Overview
+
+| Endpoint | Status |
+|---|---|
+| `GET /health` | ✅ live |
+| `POST /api/onboard/chat` | ✅ live |
+| `POST /api/onboard/complete` | ✅ live |
+| `POST /api/tutor/add` | ✅ live |
+| `POST /api/tutor/message` | ✅ live |
+| `GET /api/study-path/:studentId` | ❌ not built |
+| `POST /api/tts` | ❌ not built |
+| `POST /api/assessment/start` | ❌ not built |
 
 ---
 
@@ -17,7 +33,7 @@ One turn of the AI interview. Call repeatedly until `done: true`.
 ```typescript
 {
   name: string
-  messages: { role: 'user' | 'assistant', content: string }[]
+  messages: { role: 'user' | 'assistant', content: string }[]  // full history
 }
 ```
 
@@ -25,38 +41,38 @@ One turn of the AI interview. Call repeatedly until `done: true`.
 ```typescript
 {
   reply: string         // show this to the student
-  done: boolean         // true when AI has enough info
+  done: boolean         // true when AI has enough info (usually after ~5 exchanges)
   extracted?: ExtractedOnboardData  // only when done: true
 }
 ```
 
 **Frontend flow:**
 ```
-1. Student types first message → POST /api/onboard/chat
-2. Show reply, append to messages, student responds → POST again
+1. Student types first message → POST /api/onboard/chat with messages: []
+2. Append reply to messages, student responds → POST again with full history
 3. Repeat until done: true
-4. Save extracted, show syllabus textarea
+4. Save extracted data, show optional syllabus textarea
 5. Call /complete
 ```
 
 ---
 
 ### Step 2 — POST /api/onboard/complete
-Generates study path, creates student in Postgres.
+Generates study path, creates student in Postgres. Call once after `done: true`.
 
 **Request:**
 ```typescript
 {
   name: string
   extracted: ExtractedOnboardData   // from /chat when done: true
-  syllabus?: string                 // optional pasted syllabus
+  syllabus?: string                 // optional pasted syllabus text
 }
 ```
 
 **Response:**
 ```typescript
 {
-  studentId: string     // save to localStorage → use in all future calls
+  studentId: string     // SAVE TO localStorage('studentId') — used in all future calls
   studyPath: RoadmapNode[]
   xp: number
   streak: number
@@ -66,36 +82,63 @@ Generates study path, creates student in Postgres.
 
 ---
 
-## POST /api/tutor/message
-
-Send a message to the AI tutor. Orchestrator routes to correct subject agent.
+### POST /api/tutor/add
+Existing student adds a new subject. Same interview flow as onboarding, different final call.
 
 **Request:**
 ```typescript
 {
-  studentId: string
-  subject: string               // must match a subject from onboarding
-  message: string
-  voiceMode: boolean            // if true, response will also be sent to TTS
-  sessionId?: string            // optional, continues existing session
+  studentId: string         // from localStorage
+  extracted: ExtractedOnboardData
+  syllabus?: string
 }
 ```
 
 **Response:**
 ```typescript
 {
-  reply: string                 // text response from tutor agent
-  sessionId: string             // use this for follow-up messages
-  agentActivity: AgentActivity[]
-  memoryUpdated: boolean
-  xpGained: number              // XP earned this message (0-50)
-  newBadge?: Badge              // if student earned a badge this message
+  studyPath: RoadmapNode[]   // new subject nodes only
+  nextFocus: string
 }
 ```
 
 ---
 
+## POST /api/tutor/message
+
+Send a message to the AI tutor. Claude autonomously reads memory, teaches, generates problems,
+flags gaps, and updates memory — all within a single request.
+
+**Request:**
+```typescript
+{
+  studentId: string
+  subject: string               // must match subject name from onboarding exactly
+  message: string
+  voiceMode: boolean            // false for now (TTS not built)
+  sessionHistory: { role: 'user' | 'assistant', content: string }[]  // conversation so far, [] on first message
+}
+```
+
+**Response:**
+```typescript
+{
+  reply: string                 // tutor's text response — show in chat
+  sessionId: string             // not needed for now
+  agentActivity: AgentActivity[] // show in agent sidebar
+  memoryUpdated: boolean
+  xpGained: number              // add to displayed XP total
+}
+```
+
+**Agent Activity sidebar:** render each item as `[{agent}] {action}`.
+Agent values: `"orchestrator"` | `"tutor"` | `"assessment"` | `"memory"`
+
+---
+
 ## GET /api/study-path/:studentId
+
+⚠️ NOT BUILT YET. Until live, use `studyPath` stored in localStorage from onboarding.
 
 Returns current study roadmap and gamification state.
 
@@ -117,65 +160,6 @@ Returns current study roadmap and gamification state.
     topic: string
     reason: string
   }
-  badges: Badge[]
-}
-```
-
----
-
-## POST /api/assessment/start
-
-Spawns assessment agent for a specific topic.
-
-**Request:**
-```typescript
-{
-  studentId: string
-  subject: string
-  topic: string
-}
-```
-
-**Response:**
-```typescript
-{
-  sessionId: string
-  problems: Problem[]
-  estimatedMinutes: number
-}
-```
-
----
-
-## POST /api/assessment/submit
-
-Submit answers, get evaluation and memory update.
-
-**Request:**
-```typescript
-{
-  sessionId: string
-  studentId: string
-  answers: {
-    problemId: string
-    answer: string
-  }[]
-}
-```
-
-**Response:**
-```typescript
-{
-  score: number                 // 0-100
-  gaps: string[]                // topics still weak
-  feedback: {
-    problemId: string
-    correct: boolean
-    explanation: string
-  }[]
-  xpGained: number
-  memoryUpdated: boolean
-  agentActivity: AgentActivity[]
 }
 ```
 
@@ -183,13 +167,15 @@ Submit answers, get evaluation and memory update.
 
 ## POST /api/tts
 
+⚠️ NOT BUILT YET.
+
 Convert tutor response text to audio (ElevenLabs).
 
 **Request:**
 ```typescript
 {
   text: string
-  voice?: string                // defaults to "tutor" voice preset
+  voice?: string   // defaults to tutor preset
 }
 ```
 
@@ -209,22 +195,9 @@ new Audio(url).play()
 
 ---
 
-## GET /api/memory/:studentId
+## POST /api/assessment/start
 
-Read full student memory (used by dashboard to show personalized context).
-
-**Response:**
-```typescript
-{
-  studentId: string
-  name: string
-  subjects: {
-    [subject: string]: SubjectMemory
-  }
-  lastActive: string
-  totalSessions: number
-}
-```
+⚠️ NOT BUILT YET — skip for MVP.
 
 ---
 
@@ -234,7 +207,7 @@ All errors return:
 ```typescript
 {
   error: string         // human-readable message
-  code: string          // machine-readable code e.g. "STUDENT_NOT_FOUND"
+  code: string          // machine-readable code
   status: number        // HTTP status code
 }
 ```
@@ -243,4 +216,4 @@ All errors return:
 - `STUDENT_NOT_FOUND` — 404
 - `INVALID_SUBJECT` — 400
 - `AGENT_ERROR` — 500
-- `MEMORY_UNAVAILABLE` — 503 (OpenClaw not running)
+- `VALIDATION_ERROR` — 400

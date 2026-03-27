@@ -4,9 +4,9 @@
 
 ```
 Vercel (free)                      Railway Project
-└── Frontend (React + TS)          ├── Service 1: Backend (Express)
-    VITE_API_URL ───────────────▶  │   auto-deploys on push to main
-                                   │   URL: backend-xxx.up.railway.app
+└── Frontend (React + TS)          ├── Service 1: Backend (Express + TypeScript)
+    VITE_API_URL ───────────────▶  │   URL: hackatonhoiv-production.up.railway.app
+                                   │   auto-deploys on push to main
                                    │
                                    └── Service 2: Postgres (addon)
                                        DATABASE_URL auto-injected into backend
@@ -24,108 +24,99 @@ Vercel (free)                      Railway Project
 │  React 18 + TypeScript + Vite                               │
 │                                                             │
 │  /              → Landing page                             │
-│  /onboarding    → Multi-step form (name, subjects, exams)  │
-│  /dashboard     → Study roadmap, XP, streak, next session  │
-│  /tutor/:subject → Voice/chat AI tutor per subject         │
+│  /onboarding    → Conversational AI interview              │
+│  /dashboard     → Subject cards, XP, streak                │
+│  /tutor/:subject → Chat + Agent Activity sidebar           │
 └───────────────────────┬─────────────────────────────────────┘
                         │ HTTPS — VITE_API_URL
 ┌───────────────────────▼─────────────────────────────────────┐
 │           BACKEND (Person A) — Railway                      │
 │  Node.js + Express + TypeScript                             │
 │                                                             │
-│  POST /api/onboard         → create student + study path   │
-│  POST /api/tutor/message   → route to subject tutor agent  │
-│  GET  /api/study-path/:id  → roadmap + XP + streak         │
-│  POST /api/assessment/*    → spawn assessment agent         │
-│  GET  /api/memory/:id      → read student memory           │
-│  POST /api/tts             → ElevenLabs text-to-speech     │
+│  POST /api/onboard/chat      → AI interview (Haiku)        │
+│  POST /api/onboard/complete  → create student + study path  │
+│  POST /api/tutor/add         → add subject to student       │
+│  POST /api/tutor/message     → agentic tutor session        │
+│  GET  /api/study-path/:id    → roadmap + XP (not built)    │
+│  POST /api/tts               → ElevenLabs TTS (not built)  │
 └──────────┬──────────────────────────┬───────────────────────┘
            │                          │
 ┌──────────▼──────────┐   ┌──────────▼──────────┐
 │    Claude API        │   │  Postgres (Railway)  │
 │    Anthropic SDK     │   │                      │
-│    claude-sonnet-4-6 │   │  students table:     │
-│                      │   │  - id                │
-│  Agents:             │   │  - name              │
-│  - Orchestrator      │   │  - memory (JSONB)    │
-│  - Subject Tutors    │   │  - xp                │
-│  - Assessment        │   │  - streak            │
-│  - Study Path Gen    │   │  - last_active       │
-└──────────────────────┘   └──────────────────────┘
+│                      │   │  students table:     │
+│  Onboarding: Haiku   │   │  - id (UUID)         │
+│  Tutor: Sonnet 4.6   │   │  - name              │
+│  Study path: Sonnet  │   │  - memory (JSONB)    │
+│                      │   │  - xp                │
+└──────────────────────┘   │  - streak            │
+                           │  - last_active       │
+                           └──────────────────────┘
 ```
 
 ---
 
 ## Memory Architecture
 
-Student memory lives in a **Postgres JSONB column**. Before every Claude call, we read it
-and inject it into the system prompt. After every session, we write updates back.
+Student memory lives in a **Postgres JSONB column**. The agentic tutor reads it via tool call
+at the start of every session, and writes updates back via tool call after every response.
 
 ```typescript
 // memory JSONB structure per student:
 {
-  math: {
-    weak: ["integration by parts", "limits"],
-    strong: ["algebra", "derivatives"],
-    lastSession: "2026-03-27",
-    sessionsCount: 5,
-    averageScore: 72
+  subjects: {
+    "Calculus 1": {
+      weak: ["integration by parts", "limits"],
+      strong: ["algebra", "derivatives"],
+      gaps: ["chain rule"],
+      lastSession: "2026-03-27T21:44:00.000Z",
+      sessionsCount: 5,
+      lastNote: "Student understood derivatives but struggled with chain rule"
+    },
+    "Physics - Mechanics": { ... }
   },
-  physics: { ... },
-  // one key per subject
+  examDates: [{ subject: "Calculus 1", date: "2026-04-17" }],
+  goals: "Pass finals",
+  learningStyle: "examples",
+  studyPath: RoadmapNode[]
 }
 ```
 
-**How the tutor "remembers":**
-```
-1. Student sends message
-2. Backend reads memory from Postgres
-3. Memory injected into Claude system prompt:
-   "Student previously struggled with: integration by parts.
-    Last session score: 72%. Focus on gaps."
-4. Claude responds as if it remembers everything
-5. After response → write session update back to Postgres
-```
-
 ---
 
-## Agent Architecture
+## Agent Architecture (Actual Implementation)
 
-### Orchestrator Agent
-**Role:** Entry point. Reads memory, picks which subject tutor to activate, injects context.
+### Onboarding Agent — `backend/src/agents/orchestrator.ts`
+- **Model:** claude-haiku-4-5
+- **Role:** Conversational interview. Asks 5 questions, extracts structured data.
+- **Completion signal:** Claude outputs `READY:{...json...}` → backend parses it
+- **Study path generation:** Separate Sonnet call after interview extracts `ExtractedOnboardData`
 
-**System prompt:** `backend/prompts/orchestrator.ts`
+### Agentic Tutor Loop — `backend/src/agents/tutors/index.ts`
+- **Model:** claude-sonnet-4-6
+- **How it works:** Claude runs in a `while(true)` loop, calling tools autonomously until `stop_reason === 'end_turn'`
+- **No hardcoded routing** — Claude decides what to do on every message
 
-**Tools (Claude tool_use):**
-- `read_memory` → reads Postgres student record
-- `update_study_path` → recalculates roadmap priorities
-- `spawn_tutor` → activates subject-specific agent with context
+**Tools Claude can call (defined in `backend/src/agents/tools.ts`):**
 
----
+| Tool | What it does |
+|---|---|
+| `read_student_memory` | Reads subject history, weak/strong topics, exam date from Postgres |
+| `generate_practice_problem` | Returns problem spec → Claude formulates the actual question |
+| `update_student_memory` | Saves session progress + XP to Postgres (called after EVERY response) |
+| `flag_knowledge_gap` | Writes gap to student memory for future focus |
+| `unlock_next_node` | Marks topic completed, unlocks next roadmap node |
 
-### Subject Tutor Agents (spawned per subject)
-**Role:** Subject expert with injected student history.
-
-**System prompts:** `backend/prompts/tutors/[subject].ts`
-
-**Tools:**
-- `generate_problem(topic, difficulty)` → practice problem
-- `evaluate_answer(problem, answer)` → check + explain
-- `update_memory(subject, update)` → writes to Postgres
-- `flag_gap(topic)` → triggers Assessment Agent
-
----
-
-### Assessment Agent
-**Role:** Detects knowledge gaps, generates targeted problems, evaluates, reports back.
-
-**Spawned by:** Subject Tutor when gap detected
-
-**Flow:**
+**Typical tool call sequence per message:**
 ```
-Tutor flags gap → Assessment generates 2-3 problems
-→ Student answers → Assessment evaluates
-→ Writes gap to memory → Tutor adapts
+orchestrator: Routing to [subject] tutor...
+  → read_student_memory      (memory: Reading history...)
+  → [Claude generates response + optional tool calls]
+  → generate_practice_problem (if student needs practice)
+  → flag_knowledge_gap        (if gap detected)
+  → unlock_next_node          (if mastery demonstrated)
+  → update_student_memory     (ALWAYS — saves XP + session note)
+tutor: Response ready.
 ```
 
 ---
@@ -134,55 +125,62 @@ Tutor flags gap → Assessment generates 2-3 problems
 
 ```
 User speaks
-  → Web Speech API (browser native, free)
-  → transcript → POST /api/tutor/message { voiceMode: true }
+  → Web Speech API (browser native, free, no backend needed)
+  → transcript string
+  → POST /api/tutor/message { message: transcript, voiceMode: true }
   → Claude response text
-  → POST /api/tts (ElevenLabs)
+  → POST /api/tts (ElevenLabs) ← NOT BUILT YET
   → audio/mpeg blob
   → browser plays audio
 ```
 
-**Latency target:** under 3 seconds end-to-end
+**STT:** handled entirely in browser (Web Speech API) — no backend involvement.
+**TTS:** `POST /api/tts` not built yet. For demo: skip audio playback, show text only.
+
+---
+
+## Data Flow: Full User Journey
+
+```
+1. POST /api/onboard/chat  (repeated until done: true)
+   → Haiku runs interview
+   → Returns { reply, done, extracted? }
+
+2. POST /api/onboard/complete
+   → Sonnet generates RoadmapNode[]
+   → Student record created in Postgres
+   → Returns { studentId, studyPath, xp: 0, streak: 0 }
+   → Frontend saves studentId to localStorage
+
+3. POST /api/tutor/message  (every chat message)
+   → Claude reads memory via tool call
+   → Claude teaches, generates problems, flags gaps
+   → Claude updates memory + XP via tool call
+   → Returns { reply, agentActivity[], xpGained, memoryUpdated }
+
+4. GET /api/study-path/:studentId  ← NOT BUILT YET
+   → Read Postgres → calculate priorities by exam proximity
+   → Returns StudyPathResponse (roadmap + XP + streak)
+
+5. POST /api/tts  ← NOT BUILT YET
+   → ElevenLabs converts reply to audio
+   → Returns audio/mpeg
+```
 
 ---
 
 ## Agent Activity (visible in UI)
 
-Every agent response includes `agentActivity[]` — shown in the sidebar during sessions.
+Every `/api/tutor/message` response includes `agentActivity[]` — show in the sidebar.
 This makes the multi-agent system visible to judges.
 
 ```typescript
 [
-  { agent: 'orchestrator', action: 'Reading student memory...', timestamp },
-  { agent: 'orchestrator', action: 'Exam in 3 days → Math Tutor activated', timestamp },
-  { agent: 'tutor',        action: 'Gap detected in integration by parts', timestamp },
-  { agent: 'assessment',   action: 'Generating 2 targeted problems', timestamp },
-  { agent: 'memory',       action: 'Session logged, XP +40', timestamp },
+  { agent: 'orchestrator', action: 'Routing message to Physics tutor agent...', timestamp },
+  { agent: 'memory',       action: 'Reading Physics history for student...', timestamp },
+  { agent: 'tutor',        action: 'Generating medium problem on Newton\'s Second Law...', timestamp },
+  { agent: 'assessment',   action: 'Gap detected in F=ma (major) — flagging...', timestamp },
+  { agent: 'memory',       action: 'Saving session progress — XP +20...', timestamp },
+  { agent: 'tutor',        action: 'Response ready.', timestamp },
 ]
-```
-
----
-
-## Data Flow: First Session
-
-```
-1. POST /api/onboard
-   → Orchestrator generates RoadmapNode[] via Claude
-   → Student record created in Postgres
-   → Response: { studentId, studyPath, xp: 0, streak: 0 }
-
-2. GET /api/study-path/:studentId
-   → Read Postgres → calculate priorities by exam proximity
-   → Response: StudyPathResponse
-
-3. POST /api/tutor/message
-   → Read memory from Postgres
-   → Orchestrator → Subject Tutor Agent (with memory injected)
-   → Claude response + agentActivity[]
-   → Write session update to Postgres
-   → Response: TutorMessageResponse
-
-4. POST /api/tts
-   → ElevenLabs converts reply to audio
-   → Returns audio/mpeg
 ```
