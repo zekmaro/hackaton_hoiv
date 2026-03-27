@@ -1,23 +1,35 @@
 import { Router } from 'express'
-// TODO: import orchestrator agent
-// import { routeToTutor } from '../../agents/orchestrator'
+import { z } from 'zod'
+import { runTutorAgent } from '../../agents/tutors'
 
 export const tutorRouter = Router()
 
+const messageSchema = z.object({
+  studentId: z.string().uuid(),
+  subject: z.string().min(1),
+  message: z.string().min(1),
+  voiceMode: z.boolean().default(false),
+  sessionId: z.string().optional(),
+  sessionHistory: z.array(z.object({
+    role: z.enum(['user', 'assistant']),
+    content: z.string(),
+  })).default([]),
+})
+
 // POST /api/tutor/message
-// Orchestrator reads memory, spawns correct subject tutor agent, returns response
-// Request/Response shape: see shared/types.ts TutorMessageRequest / TutorMessageResponse
+// Agentic tutor — Claude decides what tools to call, memory is read/written automatically
 tutorRouter.post('/message', async (req, res, next) => {
   try {
-    // TODO: implement
-    // 1. Validate request (studentId, subject, message, voiceMode)
-    // 2. Read student memory from OpenClaw
-    // 3. Orchestrator decides which tutor agent to spawn
-    // 4. Tutor agent generates reply with injected memory context
-    // 5. Update memory via OpenClaw
-    // 6. Return TutorMessageResponse with agentActivity[]
-    res.json({ message: 'tutor message endpoint — TODO' })
+    const { studentId, subject, message, sessionHistory } = messageSchema.parse(req.body)
+
+    const result = await runTutorAgent(studentId, subject, message, sessionHistory)
+
+    res.json(result)
   } catch (err) {
+    if (err instanceof z.ZodError) {
+      res.status(400).json({ error: err.message, code: 'VALIDATION_ERROR', status: 400 })
+      return
+    }
     next(err)
   }
 })
