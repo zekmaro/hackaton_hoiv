@@ -1,94 +1,152 @@
 # Current State
 
-Last updated: 2026-03-27
+Last updated: 2026-03-27 (evening)
 
 ---
 
-## What Is Built and Working
+## Backend — What Is Live
 
-### Backend (deployed at https://hackatonhoiv-production.up.railway.app)
+**Deployed at:** https://hackatonhoiv-production.up.railway.app
 
 | Endpoint | Status | Notes |
 |---|---|---|
-| `GET /health` | ✅ done | returns `{ status: ok, version: 2 }` |
-| `POST /api/onboard/chat` | ✅ done | conversational AI interview, Haiku model |
-| `POST /api/onboard/complete` | ✅ done | generates study path via Claude Sonnet, saves to Postgres |
-| `POST /api/tutor/message` | ❌ not started | next priority |
-| `GET /api/study-path/:studentId` | ❌ not started | needed for dashboard |
-| `POST /api/assessment/start` | ❌ not started | later |
-| `POST /api/assessment/submit` | ❌ not started | later |
-| `GET /api/memory/:studentId` | ❌ not started | later |
-| `POST /api/tts` | ❌ not started | voice feature, later |
-
-### Frontend
-- Project structure scaffolded, all pages stubbed
-- NOT connected to backend yet
-- No actual UI implemented beyond shell components
-
-### Infrastructure
-- Railway backend: live at https://hackatonhoiv-production.up.railway.app
-- Railway Postgres: connected, `students` table auto-created on startup
-- Vercel: not set up yet (Person B does this)
+| `GET /health` | ✅ live | `{ status: ok, version: 2 }` |
+| `POST /api/onboard/chat` | ✅ live | conversational interview, Haiku |
+| `POST /api/onboard/complete` | ✅ live | creates student + study path in Postgres |
+| `POST /api/tutor/add` | ✅ live | adds new subject to existing student |
+| `POST /api/tutor/message` | ✅ live | **agentic tutor** — Claude tool use loop |
+| `GET /api/study-path/:studentId` | ❌ not built | needed for dashboard cards |
+| `POST /api/tts` | ❌ not built | voice feature |
+| `POST /api/assessment/start` | ❌ not built | later |
 
 ---
 
-## Onboarding Flow (how it works)
+## How The Tutor Agent Works (important for frontend)
 
-Two-step conversational flow — no forms:
+The tutor is a **real AI agent** — Claude decides what tools to call on every message.
+Frontend does NOT need to manage this logic. Just send the message, render the response.
 
-**Step 1: `/api/onboard/chat` (call repeatedly)**
+**What happens on every `POST /api/tutor/message`:**
+```
+1. Claude reads student memory from DB (automatically)
+2. Claude decides teaching strategy based on history
+3. Claude generates response + optionally calls tools:
+   - generate_practice_problem()  → creates a practice question
+   - flag_knowledge_gap()         → detects repeated mistakes
+   - unlock_next_node()           → unlocks next roadmap topic on mastery
+   - update_student_memory()      → saves session progress + XP
+4. Returns reply + agentActivity[] showing what Claude decided
+```
+
+**The `agentActivity[]` array is what you show in the sidebar.**
+Each item: `{ agent: "orchestrator"|"tutor"|"assessment"|"memory", action: string, timestamp }`
+
+---
+
+## API Reference for Frontend
+
+### POST /api/onboard/chat
 ```typescript
-// Frontend sends growing message history each turn
-// Backend responds with AI reply + done: boolean
-// When done: true → extracted data is returned
-
-// Example extracted data:
+// Request — send on every student message during interview
 {
-  subjects: [{ name: "Calculus 1", level: "university", currentStruggles: "Chain rule" }],
-  goals: "Get a B+ grade",
-  examDates: [{ subject: "Calculus 1", date: "2026-04-17" }],
-  studyHoursPerDay: 3,
-  learningStyle: "examples"
+  name: string,
+  messages: { role: "user" | "assistant", content: string }[]  // full history
+}
+
+// Response
+{
+  reply: string,      // show this as AI message
+  done: boolean,      // when true → stop interview, show syllabus step
+  extracted?: {       // only when done: true
+    subjects: { name: string, level: string, currentStruggles: string }[],
+    goals: string,
+    examDates: { subject: string, date: string }[],
+    studyHoursPerDay: number,
+    learningStyle: "examples" | "theory" | "mixed"
+  }
 }
 ```
 
-**Step 2: `/api/onboard/complete` (call once after done: true)**
+### POST /api/onboard/complete
 ```typescript
-// Send: { name, extracted, syllabus? }
-// Returns: { studentId, studyPath, xp: 0, streak: 0, nextFocus }
-// Frontend: save studentId to localStorage, redirect to /dashboard
+// Request — call once after done: true
+{
+  name: string,
+  extracted: ExtractedOnboardData,  // from /chat response
+  syllabus?: string                 // optional pasted text
+}
+
+// Response
+{
+  studentId: string,      // ← SAVE THIS to localStorage
+  studyPath: RoadmapNode[],
+  xp: 0,
+  streak: 0,
+  nextFocus: string
+}
+```
+
+### POST /api/tutor/add
+```typescript
+// Request — when existing student adds a new subject
+// (same extracted data as /complete but with studentId instead of creating new)
+{
+  studentId: string,        // from localStorage
+  extracted: ExtractedOnboardData,
+  syllabus?: string
+}
+
+// Response
+{
+  studyPath: RoadmapNode[], // new subject nodes only
+  nextFocus: string
+}
+```
+
+### POST /api/tutor/message
+```typescript
+// Request
+{
+  studentId: string,        // from localStorage
+  subject: string,          // e.g. "Calculus 1" — must match subject name from onboarding
+  message: string,          // what student typed or said
+  voiceMode: boolean,       // false for now, true when TTS is ready
+  sessionHistory: { role: "user" | "assistant", content: string }[]  // conversation so far
+}
+
+// Response
+{
+  reply: string,            // tutor's response — show this in chat
+  sessionId: string,        // not needed for now
+  agentActivity: {          // show these in the agent sidebar
+    agent: "orchestrator" | "tutor" | "assessment" | "memory",
+    action: string,
+    timestamp: string
+  }[],
+  memoryUpdated: boolean,
+  xpGained: number          // add this to displayed XP
+}
 ```
 
 ---
 
-## Student Memory Structure (Postgres)
+## Onboarding Page Logic
 
 ```typescript
-// students table row:
-{
-  id: string,           // UUID, the studentId
-  name: string,
-  xp: number,           // starts at 0
-  streak: number,       // starts at 0
-  last_active: Date,
-  memory: {             // JSONB column
-    subjects: {
-      "Calculus 1": {
-        weak: ["chain rule"],    // updated after each session
-        strong: [],
-        level: "university",
-        lastSession: null,
-        sessionsCount: 0,
-        averageScore: 0
-      }
-    },
-    examDates: [{ subject: "Calculus 1", date: "2026-04-17" }],
-    goals: "Get a B+ grade",
-    learningStyle: "examples",
-    studyHoursPerDay: 3,
-    studyPath: RoadmapNode[],   // full roadmap stored here
-    syllabus: null              // or pasted syllabus text
-  }
+// /onboarding page — check if new student or adding subject
+const studentId = localStorage.getItem('studentId')
+
+if (!studentId) {
+  // NEW STUDENT
+  // Step 1: show name input
+  // Step 2: chat loop calling POST /api/onboard/chat
+  // Step 3: when done: true → show syllabus textarea
+  // Step 4: POST /api/onboard/complete → save studentId → redirect /dashboard
+} else {
+  // EXISTING STUDENT ADDING A SUBJECT
+  // Skip name step (already known)
+  // Same chat loop calling POST /api/onboard/chat
+  // When done: true → POST /api/tutor/add → redirect /dashboard
 }
 ```
 
@@ -96,79 +154,84 @@ Two-step conversational flow — no forms:
 
 ## Dashboard Mental Model
 
-Dashboard = grid of tutor cards, one per subject.
-Onboarding creates the first tutor card. "+ Add subject" creates more.
+Dashboard = **grid of tutor cards**, one per subject the student has added.
 
 ```
-Dashboard
-├── Calculus 1 card  (exam: Apr 17, progress: 2/8 nodes)
-├── Physics card     (added later)
-└── + Add new subject  → goes to /onboarding again
+┌─────────────────────┐  ┌─────────────────────┐  ┌──────────────┐
+│ 📐 Calculus 1       │  │ ⚡ Physics           │  │  + Add new   │
+│ University          │  │ University           │  │    subject   │
+│ Exam: Apr 17        │  │ Exam: Apr 10         │  │              │
+│ Progress: 2/8 nodes │  │ Progress: 0/8 nodes  │  │              │
+│ [ Open tutor → ]    │  │ [ Open tutor → ]     │  │              │
+└─────────────────────┘  └─────────────────────┘  └──────────────┘
 ```
 
-Onboarding page checks localStorage:
-- No studentId → new student → calls /api/onboard/complete
-- studentId exists → adding subject → calls /api/tutor/add (same chat flow)
+- Each card → navigates to `/tutor/[subject-name]`
+- `+ Add new subject` → navigates to `/onboarding`
+- Data for cards comes from `GET /api/study-path/:studentId` (not built yet)
+- Until that endpoint is ready → store studyPath from onboarding response in localStorage
 
 ---
 
-## What Frontend Needs to Build Next (Person B)
+## Tutor Page Layout
 
-**Priority 1 — Onboarding page (`/onboarding`)**
-- Name input (first time only) → chat interface (NOT a form)
-- Each user message → POST `/api/onboard/chat` with full message history
-- When `done: true` → show optional syllabus textarea
-- If new student → POST `/api/onboard/complete` → save studentId → go to `/dashboard`
-- If existing student → POST `/api/tutor/add` → go back to `/dashboard`
+```
+┌──────────────────────────────┬─────────────────────┐
+│  Chat area                   │  Agent Activity      │
+│                              │                      │
+│  [AI]: Hey Marco! I read     │  [orchestrator]      │
+│  your history...             │  Routing to tutor... │
+│                              │                      │
+│  [You]: explain newton       │  [memory]            │
+│                              │  Reading history...  │
+│  [AI]: F = ma, here's        │                      │
+│  an example...               │  [tutor]             │
+│                              │  Generating problem  │
+│                              │                      │
+├──────────────────────────────┴─────────────────────┤
+│  [mic 🎤]  Type your message...          [Send →]  │
+└────────────────────────────────────────────────────┘
+```
 
-**Priority 2 — Dashboard (`/dashboard`)**
-- GET `/api/dashboard/:studentId` → returns all tutor cards
-- Grid of subject cards (subject name, exam date, progress, streak)
-- Each card → navigates to `/tutor/:subject`
-- "+ Add new subject" button → navigates to `/onboarding`
-
-**Priority 3 — Tutor page (`/tutor/:subject`)**
-- Chat interface + voice mic button
-- POST `/api/tutor/message` (Person A building this next)
-- Agent activity sidebar
-
----
-
-## What Backend Needs to Build Next (Person A)
-
-**Priority 1 — `POST /api/tutor/message`**
-- Read student memory from Postgres
-- Orchestrator (Haiku) decides context to inject
-- Subject tutor agent (Sonnet) generates response
-- Update memory after session
-- Return: `{ reply, sessionId, agentActivity[], xpGained, memoryUpdated }`
-
-**Priority 2 — `GET /api/study-path/:studentId`**
-- Read student from Postgres
-- Return full StudyPathResponse (roadmap + XP + streak + next exam)
-
-**Priority 3 — `POST /api/tts`**
-- ElevenLabs or browser TTS for voice responses
-- Returns audio/mpeg
+- Send message → POST `/api/tutor/message` with full `sessionHistory`
+- Append AI reply to chat
+- Append `agentActivity[]` items to sidebar
+- Add `xpGained` to running XP total
 
 ---
 
-## Models Used
+## localStorage Keys
 
-| Agent | Model | Why |
-|---|---|---|
-| Onboard interview | `claude-haiku-4-5-20251001` | fast chat turns |
-| Study path generation | `claude-sonnet-4-6` | quality structured output |
-| Tutor agent | `claude-sonnet-4-6` | core UX, must be smart |
-| Orchestrator routing | `claude-haiku-4-5-20251001` | simple routing task |
+```typescript
+'studentId'     → string UUID (set after onboarding)
+'studentName'   → string (set after onboarding, for display)
+'theme'         → 'light' | 'dark'
+'studyPath'     → JSON string of RoadmapNode[] (cache until /api/study-path is ready)
+```
 
 ---
 
-## Sync Points for Both People
+## What Backend Is Building Next (Person A)
 
-| When | What |
-|---|---|
-| Now | Person B pulls main, starts onboarding chat UI |
-| Person A builds `/api/study-path` | Person B connects dashboard |
-| Person A builds `/api/tutor/message` | Person B connects tutor chat |
-| Person A builds `/api/tts` | Person B adds voice playback |
+1. `GET /api/study-path/:studentId` — returns all subjects + roadmap nodes + XP + streak
+2. `POST /api/tts` — voice responses
+
+---
+
+## Real Example — What the Tutor Returns
+
+```json
+{
+  "reply": "Great question Marco! I checked your history — you've been struggling with Newton's laws so let me use a worked example...",
+  "sessionId": "abc-123",
+  "agentActivity": [
+    { "agent": "orchestrator", "action": "Routing to Physics tutor...", "timestamp": "..." },
+    { "agent": "memory", "action": "Reading Physics history for student...", "timestamp": "..." },
+    { "agent": "tutor", "action": "Generating easy problem on Newton's Second Law...", "timestamp": "..." },
+    { "agent": "assessment", "action": "Gap detected in F=ma — flagging...", "timestamp": "..." },
+    { "agent": "memory", "action": "Saving session progress — XP +30...", "timestamp": "..." }
+  ],
+  "memoryUpdated": true,
+  "xpGained": 30
+}
+```
