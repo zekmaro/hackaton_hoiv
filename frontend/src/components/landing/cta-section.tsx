@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { ArrowRight } from "lucide-react";
 import { AnimatedTetrahedron } from "./animated-tetrahedron";
@@ -9,6 +10,7 @@ export function CtaSection() {
   const [isVisible, setIsVisible] = useState(false);
   const sectionRef = useRef<HTMLDivElement>(null);
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
+  const navigate = useNavigate();
 
   useEffect(() => {
     const observer = new IntersectionObserver(
@@ -66,6 +68,7 @@ export function CtaSection() {
                   <Button
                     size="lg"
                     className="bg-[#FF8C00] hover:bg-[#e07b00] text-white px-8 h-14 text-base rounded-full group shadow-sm"
+                    onClick={() => navigate("/onboarding")}
                   >
                     Start learning free
                     <ArrowRight className="w-4 h-4 ml-2 transition-transform group-hover:translate-x-1" />
