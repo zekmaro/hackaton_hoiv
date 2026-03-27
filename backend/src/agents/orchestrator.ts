@@ -9,6 +9,21 @@ import type {
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
+// ─── Fallback Study Path ──────────────────────────────────────────────────────
+
+function buildFallbackStudyPath(onboardData: ExtractedOnboardData & { name: string }): RoadmapNode[] {
+  return onboardData.subjects.map((subject, i) => ({
+    id: `${subject.name.toLowerCase().replace(/\s+/g, '-')}-intro`,
+    subject: subject.name,
+    topic: `Introduction to ${subject.name}`,
+    status: i === 0 ? 'available' : 'locked',
+    priority: 'medium',
+    estimatedMinutes: 60,
+    dependsOn: [],
+    examDate: onboardData.examDates.find(e => e.subject === subject.name)?.date,
+  } as RoadmapNode))
+}
+
 // ─── Onboarding Interview ─────────────────────────────────────────────────────
 
 // One turn of the conversational onboarding interview.
@@ -66,7 +81,11 @@ export async function generateStudyPath(
   const text = message.content[0].type === 'text' ? message.content[0].text : ''
 
   const match = text.match(/\[[\s\S]*\]/)
-  if (!match) throw new Error('Claude did not return a valid JSON array')
+  if (!match) return buildFallbackStudyPath(onboardData)
 
-  return JSON.parse(match[0]) as RoadmapNode[]
+  try {
+    return JSON.parse(match[0]) as RoadmapNode[]
+  } catch {
+    return buildFallbackStudyPath(onboardData)
+  }
 }
