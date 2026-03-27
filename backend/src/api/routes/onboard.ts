@@ -51,7 +51,11 @@ const completeSchema = z.object({
       date: z.string(),
     })).default([]),
     studyHoursPerDay: z.coerce.number().default(2),
-    learningStyle: z.enum(['examples', 'theory', 'mixed']).default('mixed'),
+    learningStyle: z.string().transform(val => {
+      if (val.includes('example')) return 'examples'
+      if (val.includes('theor')) return 'theory'
+      return 'mixed'
+    }),
   }),
   syllabus: z.string().optional(),
 })
