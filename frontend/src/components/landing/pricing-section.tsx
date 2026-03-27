@@ -70,7 +70,7 @@ export function PricingSection() {
           <span className="font-mono text-xs tracking-widest text-muted-foreground uppercase block mb-6">
             Pricing
           </span>
-          <h2 className="font-display text-5xl md:text-6xl lg:text-7xl tracking-tight text-foreground mb-6">
+          <h2 className="font-sans text-5xl md:text-6xl lg:text-7xl tracking-tight text-foreground mb-6">
             Simple, student-first
             <br />
             <span className="text-stroke">pricing</span>
@@ -133,7 +133,7 @@ export function PricingSection() {
                 <span className="font-mono text-xs text-muted-foreground">
                   {String(idx + 1).padStart(2, "0")}
                 </span>
-                <h3 className="font-display text-3xl text-foreground mt-2">{plan.name}</h3>
+                <h3 className="font-sans text-3xl text-foreground mt-2">{plan.name}</h3>
                 <p className="text-sm text-muted-foreground mt-2">{plan.description}</p>
               </div>
 
@@ -141,13 +141,13 @@ export function PricingSection() {
               <div className="mb-8 pb-8 border-b border-foreground/10">
                 {plan.price.monthly !== null ? (
                   <div className="flex items-baseline gap-2">
-                    <span className="font-display text-5xl lg:text-6xl text-foreground">
+                    <span className="font-sans text-5xl lg:text-6xl text-foreground">
                       ${isAnnual ? plan.price.annual : plan.price.monthly}
                     </span>
                     <span className="text-muted-foreground">/month</span>
                   </div>
                 ) : (
-                  <span className="font-display text-4xl text-foreground">Custom</span>
+                  <span className="font-sans text-4xl text-foreground">Custom</span>
                 )}
               </div>
 

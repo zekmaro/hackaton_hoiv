@@ -47,7 +47,7 @@ export function IntegrationsSection() {
             Study system
             <span className="w-8 h-px bg-foreground/30" />
           </span>
-          <h2 className="text-4xl lg:text-6xl font-display tracking-tight mb-6">
+          <h2 className="text-4xl lg:text-6xl font-sans tracking-tight mb-6">
             Built on proven
             <br />
             learning methods.

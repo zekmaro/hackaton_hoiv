@@ -40,48 +40,48 @@ export default function SubjectDetail() {
         : "60 min Power Session"
 
   return (
-    <main className="min-h-screen bg-[#F5E47A] text-[#1A1500] px-12 py-12 font-wow-body">
+    <main className="min-h-screen bg-background text-foreground px-8 md:px-12 py-12 font-sans">
       <div className="mb-10 flex flex-col lg:flex-row lg:items-start lg:justify-between gap-6">
         <div>
           <button
             type="button"
             onClick={() => navigate("/dashboard")}
-            className="flex items-center gap-2 text-[13px] text-[#6B5B00] hover:text-[#3D3400]"
+            className="flex items-center gap-2 text-[13px] text-muted-foreground hover:text-foreground"
           >
             ← Back to subjects
           </button>
-          <h1 className="mt-3 text-[48px] leading-[1.1] font-wow-display font-extrabold">
+          <h1 className="mt-3 text-[48px] leading-[1.1] font-sans font-extrabold">
             Welcome back, Aisha
           </h1>
-          <p className="mt-2 text-[16px] text-[#6B5B00]">
+          <p className="mt-2 text-[16px] text-muted-foreground">
             Your study path is ready. Keep the streak going.
           </p>
         </div>
-        <div className="h-9 px-4 rounded-full bg-white flex items-center gap-2 shadow-sm">
+        <div className="h-9 px-4 rounded-full bg-white/80 border border-[#E6D7C5] flex items-center gap-2 shadow-sm">
           <span className="h-2.5 w-2.5 rounded-full bg-[#22C55E]" />
-          <span className="text-[14px] text-[#1A1500]">Streak: 7 days</span>
+          <span className="text-[14px] text-foreground">Streak: 7 days</span>
         </div>
       </div>
 
       <div className="grid grid-cols-[280px_1fr] gap-6 items-start max-[900px]:grid-cols-1">
-        <aside className="today-panel rounded-2xl border border-[rgba(0,0,0,0.06)] bg-[#EDD94A] p-6">
-          <p className="text-[11px] font-semibold tracking-[0.08em] uppercase text-[#6B5B00] mb-4">
+        <aside className="today-panel rounded-2xl border border-[#E6D7C5] bg-[#FFF4CC]/70 p-6">
+          <p className="text-[11px] font-semibold tracking-[0.08em] uppercase text-muted-foreground mb-4">
             Today
           </p>
           <div className="flex items-center gap-2">
             <span className="text-xl" style={{ color: accent }}>
               {icon}
             </span>
-            <h2 className="text-[22px] font-wow-display font-bold text-[#1A1500]">
+            <h2 className="text-[22px] font-sans font-bold text-foreground">
               {subjectName} + Biology
             </h2>
           </div>
-          <p className="text-[14px] text-[#6B5B00] mb-6">2 focus blocks</p>
+          <p className="text-[14px] text-muted-foreground mb-6">2 focus blocks</p>
 
-          <p className="text-[11px] font-semibold tracking-[0.08em] uppercase text-[#6B5B00] mb-2">
+          <p className="text-[11px] font-semibold tracking-[0.08em] uppercase text-muted-foreground mb-2">
             XP
           </p>
-          <div className="h-2 rounded-full bg-[rgba(0,0,0,0.12)] overflow-hidden mb-2">
+          <div className="h-2 rounded-full bg-[#E6D7C5] overflow-hidden mb-2">
             <div
               className="xp-fill h-full rounded-full"
               style={{
@@ -91,18 +91,18 @@ export default function SubjectDetail() {
               } as CSSProperties}
             />
           </div>
-          <p className="text-[13px] text-[#6B5B00]">
+          <p className="text-[13px] text-muted-foreground">
             {xp} / {xpMax} XP to Level {level}
           </p>
 
-          <p className="mt-5 text-[11px] font-semibold tracking-[0.08em] uppercase text-[#6B5B00] mb-2">
+          <p className="mt-5 text-[11px] font-semibold tracking-[0.08em] uppercase text-muted-foreground mb-2">
             Badges
           </p>
           <div className="flex flex-wrap gap-2">
             {badges.map((badge) => (
               <span
                 key={badge}
-                className="h-7 px-3 rounded-full border border-[rgba(0,0,0,0.1)] bg-white text-[13px] text-[#3D3400] flex items-center"
+                className="h-7 px-3 rounded-full border border-[#E6D7C5] bg-white/80 text-[13px] text-foreground flex items-center"
               >
                 {badge}
               </span>
@@ -111,12 +111,12 @@ export default function SubjectDetail() {
         </aside>
 
         <div className="roadmap-panel">
-          <section className="rounded-2xl border border-[rgba(0,0,0,0.06)] bg-[#EDD94A] p-6 mb-5">
+          <section className="rounded-2xl border border-[#E6D7C5] bg-[#FFF4CC]/70 p-6 mb-5">
             <div className="flex items-center justify-between mb-5">
-              <h2 className="text-[20px] font-wow-display font-bold text-[#1A1500]">
+              <h2 className="text-[20px] font-sans font-bold text-foreground">
                 Your roadmap
               </h2>
-              <span className="text-[14px] text-[#6B5B00]">Week 2 of 6</span>
+              <span className="text-[14px] text-muted-foreground">Week 2 of 6</span>
             </div>
 
             <div className="grid grid-cols-3 gap-3 max-[700px]:grid-cols-2">
@@ -145,12 +145,12 @@ export default function SubjectDetail() {
                     type="button"
                     onClick={onClick}
                     title={locked ? "Complete previous nodes first" : ""}
-                    className={`roadmap-node ${locked ? "locked" : ""} text-left rounded-xl border border-[rgba(0,0,0,0.08)] bg-[#FEFCE8] p-4`}
+                    className={`roadmap-node ${locked ? "locked" : ""} text-left rounded-xl border border-[#E6D7C5] bg-white/80 p-4`}
                   >
-                    <p className="text-[11px] font-semibold tracking-[0.07em] uppercase text-[#6B5B00] mb-2">
+                    <p className="text-[11px] font-semibold tracking-[0.07em] uppercase text-muted-foreground mb-2">
                       {subjectName}
                     </p>
-                    <h3 className="text-[18px] font-wow-display font-bold text-[#1A1500] mb-3">
+                    <h3 className="text-[18px] font-sans font-bold text-foreground mb-3">
                       {node.title}
                     </h3>
                     <span
@@ -166,20 +166,20 @@ export default function SubjectDetail() {
             </div>
           </section>
 
-          <section className="rounded-2xl border border-[rgba(0,0,0,0.06)] bg-[#EDD94A] p-6 flex items-center justify-between gap-4 max-[600px]:flex-col max-[600px]:items-start">
+          <section className="rounded-2xl border border-[#E6D7C5] bg-[#FFF4CC]/70 p-6 flex items-center justify-between gap-4 max-[600px]:flex-col max-[600px]:items-start">
             <div>
-              <p className="text-[11px] font-semibold tracking-[0.08em] uppercase text-[#6B5B00] mb-2">
+              <p className="text-[11px] font-semibold tracking-[0.08em] uppercase text-muted-foreground mb-2">
                 Next session
               </p>
-              <p className="text-[24px] font-wow-display font-bold text-[#1A1500] mb-1">
+              <p className="text-[24px] font-sans font-bold text-foreground mb-1">
                 {sessionTitle}
               </p>
-              <p className="text-[14px] text-[#6B5B00]">Starts when you are ready</p>
+              <p className="text-[14px] text-muted-foreground">Starts when you are ready</p>
             </div>
             <button
               type="button"
               onClick={() => navigate(`/tutor/${subjectKey}?mode=sprint&duration=25`)}
-              className="h-12 px-7 rounded-[10px] bg-[#E67E00] text-white text-[15px] font-wow-display font-bold hover:bg-[#D97706] hover:-translate-y-0.5 hover:shadow-[0_4px_16px_rgba(230,126,0,0.4)] transition-all"
+              className="h-12 px-7 rounded-[10px] bg-[#FF8C00] text-white text-[15px] font-sans font-bold hover:bg-[#e07b00] hover:-translate-y-0.5 hover:shadow-[0_6px_18px_rgba(255,140,0,0.35)] transition-all"
             >
               Start now
             </button>

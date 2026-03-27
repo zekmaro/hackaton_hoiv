@@ -45,7 +45,7 @@ export function InfrastructureSection() {
               isVisible ? "opacity-100 translate-x-0" : "opacity-0 -translate-x-8"
             }`}
           >
-            <h2 className="text-4xl lg:text-6xl font-display tracking-tight mb-8">
+            <h2 className="text-4xl lg:text-6xl font-sans tracking-tight mb-8">
               Global by
               <br />
               default.
@@ -58,15 +58,15 @@ export function InfrastructureSection() {
             {/* Stats */}
             <div className="grid grid-cols-3 gap-8">
               <div>
-                <div className="text-4xl lg:text-5xl font-display mb-2">17</div>
+                <div className="text-4xl lg:text-5xl font-sans mb-2">17</div>
                 <div className="text-sm text-muted-foreground">Data centers</div>
               </div>
               <div>
-                <div className="text-4xl lg:text-5xl font-display mb-2">99.99%</div>
+                <div className="text-4xl lg:text-5xl font-sans mb-2">99.99%</div>
                 <div className="text-sm text-muted-foreground">Uptime SLA</div>
               </div>
               <div>
-                <div className="text-4xl lg:text-5xl font-display mb-2">&lt;50ms</div>
+                <div className="text-4xl lg:text-5xl font-sans mb-2">&lt;50ms</div>
                 <div className="text-sm text-muted-foreground">Global latency</div>
               </div>
             </div>

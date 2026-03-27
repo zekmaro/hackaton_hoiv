@@ -65,7 +65,7 @@ export default function Onboarding() {
 
       {/* Top bar */}
       <div className="mt-[3px] px-8 h-14 flex items-center justify-between">
-        <div className="flex items-center gap-2 font-display text-lg">
+        <div className="flex items-center gap-2 font-sans text-lg">
           <span className="text-[#FF8C00] font-semibold">StudyUp</span>
           <span className="text-foreground/80">study</span>
         </div>

@@ -112,7 +112,7 @@ export function DevelopersSection() {
               <span className="w-8 h-px bg-foreground/30" />
               Study tools
             </span>
-            <h2 className="text-4xl lg:text-6xl font-display tracking-tight mb-8">
+            <h2 className="text-4xl lg:text-6xl font-sans tracking-tight mb-8">
               Motivation
               <br />
               <span className="text-muted-foreground">built in.</span>

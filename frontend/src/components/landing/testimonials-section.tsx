@@ -72,7 +72,7 @@ export function TestimonialsSection() {
                 isAnimating ? "opacity-0 translate-y-4" : "opacity-100 translate-y-0"
               }`}
             >
-              <p className="font-display text-4xl md:text-5xl lg:text-6xl leading-[1.1] tracking-tight text-foreground">
+              <p className="font-sans text-4xl md:text-5xl lg:text-6xl leading-[1.1] tracking-tight text-foreground">
                 "{activeTestimonial.quote}"
               </p>
             </blockquote>
@@ -84,7 +84,7 @@ export function TestimonialsSection() {
               }`}
             >
               <div className="w-16 h-16 rounded-full bg-foreground/5 border border-foreground/10 flex items-center justify-center">
-                <span className="font-display text-2xl text-foreground">
+                <span className="font-sans text-2xl text-foreground">
                   {activeTestimonial.author.charAt(0)}
                 </span>
               </div>
@@ -107,7 +107,7 @@ export function TestimonialsSection() {
               <span className="font-mono text-xs tracking-widest text-muted-foreground uppercase block mb-4">
                 Key Result
               </span>
-              <p className="font-display text-3xl md:text-4xl text-foreground">
+              <p className="font-sans text-3xl md:text-4xl text-foreground">
                 {activeTestimonial.metric}
               </p>
             </div>
@@ -152,7 +152,7 @@ export function TestimonialsSection() {
                 (company) => (
                   <span
                     key={`${setIdx}-${company}`}
-                    className="font-display text-xl md:text-2xl text-foreground/30 whitespace-nowrap hover:text-foreground transition-colors duration-300"
+                    className="font-sans text-xl md:text-2xl text-foreground/30 whitespace-nowrap hover:text-foreground transition-colors duration-300"
                   >
                     {company}
                   </span>

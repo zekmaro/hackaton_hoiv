@@ -14,11 +14,11 @@ export default function Dashboard() {
   const navigate = useNavigate()
 
   return (
-    <main className="min-h-screen bg-[#0A0C0F] text-[#F0F2F5] pt-16 font-wow-body">
-      <div className="mx-auto max-w-[1200px] px-10 py-10">
+    <main className="min-h-screen bg-background text-foreground pt-16 font-sans">
+      <div className="mx-auto max-w-[1200px] px-8 md:px-10 py-10">
         <div className="mb-8">
-          <h1 className="text-[28px] font-wow-display font-bold">Your subjects</h1>
-          <p className="text-[14px] text-[#8B909A] mt-1">
+          <h1 className="text-[28px] font-sans font-bold">Your subjects</h1>
+          <p className="text-[14px] text-muted-foreground mt-1">
             Click a subject to start studying
           </p>
         </div>
@@ -34,10 +34,10 @@ export default function Dashboard() {
               key={subject.name}
               type="button"
               onClick={() => navigate(`/dashboard/${subject.name.toLowerCase()}`)}
-              className="subject-card group relative w-full overflow-hidden rounded-2xl border border-[#1F2430] bg-[#111318] p-5 text-left transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_8px_32px_rgba(0,0,0,0.4)] hover:[border-color:var(--accent-border)]"
+              className="subject-card group relative w-full overflow-hidden rounded-2xl border border-[#E6D7C5] bg-[#FFF4CC]/70 p-5 text-left transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_12px_28px_rgba(90,62,54,0.18)] hover:[border-color:var(--accent-border)]"
               style={
                 {
-                  borderColor: "#1F2430",
+                  borderColor: "#E6D7C5",
                   "--accent": accent,
                   "--accent-border": `${accent}80`,
                   animationDelay: `${index * 80}ms`,
@@ -47,7 +47,7 @@ export default function Dashboard() {
               <div
                 className="absolute -bottom-8 -right-8 h-24 w-24 rounded-full"
                 style={{
-                  background: `radial-gradient(circle, ${accent}0f 0%, transparent 70%)`,
+                  background: `radial-gradient(circle, ${accent}22 0%, transparent 70%)`,
                 }}
               />
 
@@ -64,40 +64,40 @@ export default function Dashboard() {
                     {icon}
                   </div>
                   <div>
-                    <h2 className="text-[17px] font-wow-display font-bold text-[#F0F2F5]">
+                    <h2 className="text-[17px] font-sans font-bold text-[#F0F2F5]">
                       {subject.name}
                     </h2>
                   </div>
                 </div>
-                <span className="text-[#4A4F5C] text-[16px] rounded-md px-2 py-1 hover:bg-[#181C23] hover:text-[#8B909A] transition-colors">
+                <span className="text-muted-foreground text-[16px] rounded-md px-2 py-1 hover:bg-[#FFEC99]/70 hover:text-foreground transition-colors">
                   •••
                 </span>
               </div>
 
               <div className="flex flex-wrap gap-2 mb-5">
-                <span className="h-6 rounded-full border border-[#2A3040] bg-[#1F2430] px-3 text-[12px] text-[#8B909A] flex items-center">
+                <span className="h-6 rounded-full border border-[#E6D7C5] bg-white/80 px-3 text-[12px] text-muted-foreground flex items-center">
                   {subject.level}
                 </span>
                 {subject.name === "History" && (
-                  <span className="h-6 rounded-full border border-[#EF4444] bg-[rgba(239,68,68,0.15)] px-3 text-[12px] text-[#EF4444] flex items-center gap-1">
+                  <span className="h-6 rounded-full border border-[#EF4444]/50 bg-[rgba(239,68,68,0.12)] px-3 text-[12px] text-[#EF4444] flex items-center gap-1">
                     <span className="h-1.5 w-1.5 rounded-full bg-[#EF4444] animate-pulse" />
                     Exam Apr 17
                   </span>
                 )}
               </div>
 
-              <div className="flex items-center justify-between border-t border-[#1F2430] pt-4">
-                <div className="flex items-center gap-4 text-[13px] text-[#8B909A]">
+              <div className="flex items-center justify-between border-t border-[#E6D7C5] pt-4">
+                <div className="flex items-center gap-4 text-[13px] text-muted-foreground">
                   <div className="flex items-center gap-2">
                     <span>💬</span>
                     <span>{subject.sessions} sessions</span>
-                    <span className="ml-1 min-w-[18px] h-[18px] rounded-full border border-[#1F2430] bg-[#181C23] text-[11px] flex items-center justify-center">
+                    <span className="ml-1 min-w-[18px] h-[18px] rounded-full border border-[#E6D7C5] bg-white/80 text-[11px] flex items-center justify-center">
                       {subject.sessions}
                     </span>
                   </div>
                   <div className="flex items-center gap-2">
                     <span>🛤</span>
-                    <span className="min-w-[18px] h-[18px] rounded-full border border-[#1F2430] bg-[#181C23] text-[11px] flex items-center justify-center">
+                    <span className="min-w-[18px] h-[18px] rounded-full border border-[#E6D7C5] bg-white/80 text-[11px] flex items-center justify-center">
                       {subject.nodes}
                     </span>
                   </div>
@@ -119,10 +119,10 @@ export default function Dashboard() {
           <button
             type="button"
             onClick={() => navigate("/onboarding")}
-            className="w-full min-h-[140px] rounded-2xl border-2 border-dashed border-[#1F2430] text-[#4A4F5C] flex flex-col items-center justify-center gap-2 transition-all duration-200 hover:border-[#92610A] hover:bg-[rgba(245,158,11,0.05)] hover:text-[#F59E0B]"
+            className="w-full min-h-[140px] rounded-2xl border-2 border-dashed border-[#E6D7C5] text-muted-foreground flex flex-col items-center justify-center gap-2 transition-all duration-200 hover:border-[#FF8C00] hover:bg-[#FFEC99]/70 hover:text-[#FF8C00]"
           >
             <span className="text-[22px]">+</span>
-            <span className="text-[15px] font-wow-display font-semibold">+ New subject</span>
+            <span className="text-[15px] font-sans font-semibold">+ New subject</span>
           </button>
         </div>
       </div>
