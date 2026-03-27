@@ -1,3 +1,4 @@
+@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:wght@300;400;500&display=swap');
 @import 'tailwindcss';
 @import 'tw-animate-css';
 
@@ -138,6 +139,14 @@
 }
 
 @layer utilities {
+  .font-wow-display {
+    font-family: 'Syne', sans-serif;
+  }
+
+  .font-wow-body {
+    font-family: 'DM Sans', sans-serif;
+  }
+
   .font-display {
     font-family: var(--font-display);
   }
@@ -245,4 +254,61 @@
       linear-gradient(135deg, var(--foreground) 25%, transparent 25%, transparent 50%, var(--foreground) 50%, var(--foreground) 75%, transparent 75%) border-box;
     background-size: 100% 100%, 8px 8px;
   }
+
+  .subject-card {
+    animation: cardIn 0.4s cubic-bezier(0.4, 0, 0.2, 1) both;
+  }
+
+  .today-panel {
+    animation: slideInLeft 0.4s cubic-bezier(0.4, 0, 0.2, 1) both;
+  }
+
+  .roadmap-panel {
+    animation: slideInRight 0.4s cubic-bezier(0.4, 0, 0.2, 1) 0.1s both;
+  }
+
+  .xp-fill {
+    width: var(--xp-pct);
+    animation: xpFill 0.8s cubic-bezier(0.4, 0, 0.2, 1) 0.3s both,
+      shimmer 1.5s ease 0.3s 1;
+  }
+
+  .roadmap-node:not(.locked) {
+    transition: transform 0.15s, box-shadow 0.15s;
+  }
+
+  .roadmap-node:not(.locked):hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
+  }
+
+  .roadmap-node.locked {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
+}
+
+@keyframes cardIn {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideInLeft {
+  from { opacity: 0; transform: translateX(-20px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes slideInRight {
+  from { opacity: 0; transform: translateX(20px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes xpFill {
+  from { width: 0%; }
+  to { width: var(--xp-pct); }
+}
+
+@keyframes shimmer {
+  0% { background-position: 0% 50%; }
+  100% { background-position: 100% 50%; }
 }

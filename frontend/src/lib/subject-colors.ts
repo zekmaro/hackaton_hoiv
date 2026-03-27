@@ -1,0 +1,31 @@
+export const SUBJECT_COLORS: Record<string, string> = {
+  math: "#8B5CF6",
+  mathematics: "#8B5CF6",
+  physics: "#3B82F6",
+  cs: "#22C55E",
+  "computer science": "#22C55E",
+  history: "#F59E0B",
+  geography: "#06B6D4",
+  biology: "#10B981",
+  chemistry: "#F43F5E",
+  economics: "#F97316",
+  english: "#EC4899",
+  literature: "#EC4899",
+  default: "#F59E0B",
+}
+
+export const SUBJECT_ICONS: Record<string, string> = {
+  math: "∑",
+  mathematics: "∑",
+  physics: "⚛",
+  cs: "</>",
+  "computer science": "</>",
+  history: "📜",
+  geography: "🌍",
+  biology: "🧬",
+  chemistry: "⚗",
+  economics: "📈",
+  english: "✍",
+  literature: "📚",
+  default: "📖",
+}
