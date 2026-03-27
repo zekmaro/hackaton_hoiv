@@ -1,25 +1,26 @@
 import Anthropic from '@anthropic-ai/sdk'
-// import { orchestratorPrompt } from '../prompts/orchestrator'
-// import { readStudentMemory } from '../memory/client'
-// import { getTutorAgent } from './tutors'
+import { studyPathPrompt } from '../prompts/orchestrator'
+import type { RoadmapNode, OnboardRequest } from '../../../shared/types'
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
-// TODO: Orchestrator Agent
-// - Reads student memory from OpenClaw
-// - Decides which subject tutor to activate
-// - Injects memory context into tutor prompt
-// - Collects agentActivity[] events throughout
-// - Returns tutor response + activity log
+export async function generateStudyPath(onboardData: OnboardRequest): Promise<RoadmapNode[]> {
+  const message = await client.messages.create({
+    model: 'claude-sonnet-4-6',
+    max_tokens: 2048,
+    messages: [
+      {
+        role: 'user',
+        content: studyPathPrompt(onboardData),
+      },
+    ],
+  })
 
-export async function routeToTutor(_studentId: string, _subject: string, _message: string) {
-  // TODO: implement
-  throw new Error('orchestrator not implemented yet')
-}
+  const text = message.content[0].type === 'text' ? message.content[0].text : ''
 
-export async function generateStudyPath(_onboardData: unknown) {
-  // TODO: implement
-  // Call Claude with orchestratorPrompt + onboard data
-  // Return structured RoadmapNode[]
-  throw new Error('generateStudyPath not implemented yet')
+  // Extract JSON array from response (Claude sometimes adds markdown)
+  const match = text.match(/\[[\s\S]*\]/)
+  if (!match) throw new Error('Claude did not return a valid JSON array')
+
+  return JSON.parse(match[0]) as RoadmapNode[]
 }
