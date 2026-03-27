@@ -26,7 +26,7 @@ app.use(express.json())
 app.get('/health', (_req, res) => {
   res.json({
     status: 'ok',
-    openclaw: process.env.OPENCLAW_URL ? 'configured' : 'not configured',
+    version: '2',
     timestamp: new Date().toISOString(),
   })
 })
