@@ -55,6 +55,12 @@ const plans = [
 
 export function PricingSection() {
   const [isAnnual, setIsAnnual] = useState(true);
+  const savingsSource = plans.find(
+    (plan) => plan.price.monthly !== null && plan.price.annual !== null && plan.price.monthly > 0
+  );
+  const savingsPercent = savingsSource
+    ? Math.round(((savingsSource.price.monthly - savingsSource.price.annual) / savingsSource.price.monthly) * 100)
+    : null;
 
   return (
     <section id="pricing" className="relative py-32 lg:py-40 border-t border-foreground/10">
@@ -75,7 +81,7 @@ export function PricingSection() {
         </div>
 
         {/* Billing Toggle */}
-        <div className="flex items-center gap-4 mb-16">
+        <div className="flex flex-wrap items-center gap-4 mb-16">
           <span
             className={`text-sm transition-colors ${
               !isAnnual ? "text-foreground" : "text-muted-foreground"
@@ -100,9 +106,9 @@ export function PricingSection() {
           >
             Annual
           </span>
-          {isAnnual && (
-            <span className="ml-2 px-2 py-1 bg-foreground text-primary-foreground text-xs font-mono">
-              Save 17%
+          {isAnnual && savingsPercent !== null && (
+            <span className="ml-2 rounded-full border border-foreground/10 bg-background/80 px-2.5 py-1 text-xs font-mono text-foreground">
+              Save {savingsPercent}%
             </span>
           )}
         </div>
