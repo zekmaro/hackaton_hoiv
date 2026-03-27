@@ -8,32 +8,59 @@ If you change an endpoint, update this doc and `shared/types.ts` in the same PR.
 
 ---
 
-## POST /api/onboard
+## Onboarding (2-step conversational flow)
 
-Creates a new student, generates their initial study roadmap.
+### Step 1 — POST /api/onboard/chat
+One turn of the AI interview. Call repeatedly until `done: true`.
 
 **Request:**
 ```typescript
 {
   name: string
-  subjects: string[]            // e.g. ["math", "physics", "history"]
-  examDates: {
-    subject: string
-    date: string                // ISO 8601
-  }[]
-  goals: string                 // free text, e.g. "get into top university"
-  studyHoursPerDay: number
+  messages: { role: 'user' | 'assistant', content: string }[]
 }
 ```
 
 **Response:**
 ```typescript
 {
-  studentId: string
+  reply: string         // show this to the student
+  done: boolean         // true when AI has enough info
+  extracted?: ExtractedOnboardData  // only when done: true
+}
+```
+
+**Frontend flow:**
+```
+1. Student types first message → POST /api/onboard/chat
+2. Show reply, append to messages, student responds → POST again
+3. Repeat until done: true
+4. Save extracted, show syllabus textarea
+5. Call /complete
+```
+
+---
+
+### Step 2 — POST /api/onboard/complete
+Generates study path, creates student in Postgres.
+
+**Request:**
+```typescript
+{
+  name: string
+  extracted: ExtractedOnboardData   // from /chat when done: true
+  syllabus?: string                 // optional pasted syllabus
+}
+```
+
+**Response:**
+```typescript
+{
+  studentId: string     // save to localStorage → use in all future calls
   studyPath: RoadmapNode[]
-  xp: number                    // always 0 on first call
-  streak: number                // always 0 on first call
-  nextFocus: string             // e.g. "Start with Math — exam closest"
+  xp: number
+  streak: number
+  nextFocus: string
 }
 ```
 
