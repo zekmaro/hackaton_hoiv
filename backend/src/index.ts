@@ -1,6 +1,7 @@
 import 'dotenv/config'
 import express from 'express'
 import cors from 'cors'
+import { initDB } from './memory/client'
 import { onboardRouter } from './api/routes/onboard'
 import { tutorRouter } from './api/routes/tutor'
 import { studyPathRouter } from './api/routes/studyPath'
@@ -44,6 +45,13 @@ app.use((err: Error, _req: express.Request, res: express.Response, _next: expres
   res.status(500).json({ error: err.message, code: 'AGENT_ERROR', status: 500 })
 })
 
-app.listen(PORT, () => {
-  console.log(`Backend running on http://localhost:${PORT}`)
-})
+initDB()
+  .then(() => {
+    app.listen(PORT, () => {
+      console.log(`Backend running on http://localhost:${PORT}`)
+    })
+  })
+  .catch(err => {
+    console.error('Failed to init DB:', err)
+    process.exit(1)
+  })

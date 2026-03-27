@@ -3,18 +3,16 @@
 ## Hosting
 
 ```
-Vercel (free)                     Railway Project
-└── Frontend (React + TS)         ├── Service 1: OpenClaw
-    VITE_API_URL ──────────────▶  │   (official template, one-click)
-                                  │   Persistent volume: /data
-                                  │   URL: openclaw-xxx.up.railway.app
-                                  │
-                                  └── Service 2: Backend (Express)
-                                      OPENCLAW_URL → Service 1
-                                      URL: backend-xxx.up.railway.app
+Vercel (free)                      Railway Project
+└── Frontend (React + TS)          ├── Service 1: Backend (Express)
+    VITE_API_URL ───────────────▶  │   auto-deploys on push to main
+                                   │   URL: backend-xxx.up.railway.app
+                                   │
+                                   └── Service 2: Postgres (addon)
+                                       DATABASE_URL auto-injected into backend
 ```
 
-**Deploy order:** OpenClaw → Backend → Frontend
+**Deploy order:** Railway Postgres → Railway Backend → Vercel Frontend
 
 ---
 
@@ -32,35 +30,61 @@ Vercel (free)                     Railway Project
 └───────────────────────┬─────────────────────────────────────┘
                         │ HTTPS — VITE_API_URL
 ┌───────────────────────▼─────────────────────────────────────┐
-│           BACKEND (Person A) — Railway Service 2            │
+│           BACKEND (Person A) — Railway                      │
 │  Node.js + Express + TypeScript                             │
 │                                                             │
-│  /api/onboard          → creates student, generates roadmap │
-│  /api/tutor/message    → routes to correct tutor agent      │
-│  /api/study-path/:id   → returns current roadmap + XP      │
-│  /api/assessment/*     → spawns assessment agent            │
-│  /api/memory/:id       → reads student memory from OpenClaw │
-│  /api/tts              → ElevenLabs text-to-speech          │
-└───────────────────────┬─────────────────────────────────────┘
-                        │
-        ┌───────────────┴──────────────────┐
-        │                                  │
-┌───────▼────────┐                ┌────────▼──────────────────┐
-│  Claude API    │                │  OpenClaw — Railway Svc 1 │
-│  (Anthropic)   │                │  (official Railway template│
-│                │                │   one-click deploy)        │
-│  claude-sonnet-4-6     │                │                           │
-│                │                │  Persistent memory: /data  │
-│  Agents:       │                │  WebSocket control plane   │
-│  - Orchestrator│                │                           │
-│  - MathTutor   │                │  Skills:                  │
-│  - PhysicsTutor│                │  - StudyPath              │
-│  - Assessment  │                │  - ExamReminder           │
-│  - StudyPath   │                │  - SessionLog             │
-└────────────────┘                │                           │
-                                  │  Cron jobs →              │
-                                  │  Telegram reminders       │
-                                  └───────────────────────────┘
+│  POST /api/onboard         → create student + study path   │
+│  POST /api/tutor/message   → route to subject tutor agent  │
+│  GET  /api/study-path/:id  → roadmap + XP + streak         │
+│  POST /api/assessment/*    → spawn assessment agent         │
+│  GET  /api/memory/:id      → read student memory           │
+│  POST /api/tts             → ElevenLabs text-to-speech     │
+└──────────┬──────────────────────────┬───────────────────────┘
+           │                          │
+┌──────────▼──────────┐   ┌──────────▼──────────┐
+│    Claude API        │   │  Postgres (Railway)  │
+│    Anthropic SDK     │   │                      │
+│    claude-sonnet-4-6 │   │  students table:     │
+│                      │   │  - id                │
+│  Agents:             │   │  - name              │
+│  - Orchestrator      │   │  - memory (JSONB)    │
+│  - Subject Tutors    │   │  - xp                │
+│  - Assessment        │   │  - streak            │
+│  - Study Path Gen    │   │  - last_active       │
+└──────────────────────┘   └──────────────────────┘
+```
+
+---
+
+## Memory Architecture
+
+Student memory lives in a **Postgres JSONB column**. Before every Claude call, we read it
+and inject it into the system prompt. After every session, we write updates back.
+
+```typescript
+// memory JSONB structure per student:
+{
+  math: {
+    weak: ["integration by parts", "limits"],
+    strong: ["algebra", "derivatives"],
+    lastSession: "2026-03-27",
+    sessionsCount: 5,
+    averageScore: 72
+  },
+  physics: { ... },
+  // one key per subject
+}
+```
+
+**How the tutor "remembers":**
+```
+1. Student sends message
+2. Backend reads memory from Postgres
+3. Memory injected into Claude system prompt:
+   "Student previously struggled with: integration by parts.
+    Last session score: 72%. Focus on gaps."
+4. Claude responds as if it remembers everything
+5. After response → write session update back to Postgres
 ```
 
 ---
@@ -68,85 +92,40 @@ Vercel (free)                     Railway Project
 ## Agent Architecture
 
 ### Orchestrator Agent
-**Role:** Entry point for every student interaction. Reads memory, decides which tutor to activate, routes the message.
+**Role:** Entry point. Reads memory, picks which subject tutor to activate, injects context.
 
-**Input:** student message + studentId
-**Output:** routes to subject tutor agent with context injected
+**System prompt:** `backend/prompts/orchestrator.ts`
 
-**System prompt location:** `backend/prompts/orchestrator.ts`
-
-**Tools available:**
-- `read_memory(studentId)` → gets full student profile from OpenClaw
-- `update_study_path(studentId, updates)` → adjusts roadmap
-- `spawn_tutor(subject, context)` → activates subject-specific agent
-- `get_exam_priority(studentId)` → returns nearest exam + recommended focus
+**Tools (Claude tool_use):**
+- `read_memory` → reads Postgres student record
+- `update_study_path` → recalculates roadmap priorities
+- `spawn_tutor` → activates subject-specific agent with context
 
 ---
 
-### Subject Tutor Agents (one per subject, spawned on demand)
-**Role:** Subject expert that knows the student's history in that subject.
+### Subject Tutor Agents (spawned per subject)
+**Role:** Subject expert with injected student history.
 
-**Subjects:** math, physics, chemistry, biology, history, literature, cs (expandable)
+**System prompts:** `backend/prompts/tutors/[subject].ts`
 
-**Input:** message + injected student memory for that subject
-**Output:** explanation / problem / encouragement + memory update payload
-
-**System prompt location:** `backend/prompts/tutors/[subject].ts`
-
-**Tools available:**
-- `generate_problem(topic, difficulty)` → creates practice problem
-- `evaluate_answer(problem, answer)` → checks and explains
-- `update_memory(studentId, subject, update)` → logs session data
-- `spawn_assessment(topic)` → triggers focused assessment session
+**Tools:**
+- `generate_problem(topic, difficulty)` → practice problem
+- `evaluate_answer(problem, answer)` → check + explain
+- `update_memory(subject, update)` → writes to Postgres
+- `flag_gap(topic)` → triggers Assessment Agent
 
 ---
 
 ### Assessment Agent
-**Role:** Detects knowledge gaps, generates targeted problems, evaluates and reports back.
+**Role:** Detects knowledge gaps, generates targeted problems, evaluates, reports back.
 
-**Spawned by:** Subject Tutor when it detects repeated mistakes
-
-**System prompt location:** `backend/prompts/assessment.ts`
+**Spawned by:** Subject Tutor when gap detected
 
 **Flow:**
 ```
-Subject Tutor detects gap
-  → spawns Assessment Agent with topic
-  → Assessment generates 2-3 focused problems
-  → Student answers
-  → Assessment evaluates + finds root gap
-  → Reports to Subject Tutor
-  → Tutor adapts explanation
-  → Memory updated with gap + resolution
-```
-
----
-
-### Memory Agent (OpenClaw)
-**Role:** Single source of truth for student learning state. All agents read and write through this.
-
-**What it stores per student:**
-```typescript
-{
-  studentId: string
-  name: string
-  subjects: {
-    [subject: string]: {
-      weak: string[]        // topics that need work
-      strong: string[]      // mastered topics
-      lastSession: Date
-      sessionsCount: number
-      averageScore: number
-    }
-  }
-  studyPath: RoadmapNode[]
-  xp: number
-  streak: number
-  lastActive: Date
-  examDates: { subject: string; date: Date }[]
-  preferredStudyTime: string
-  pace: 'slow' | 'medium' | 'fast'
-}
+Tutor flags gap → Assessment generates 2-3 problems
+→ Student answers → Assessment evaluates
+→ Writes gap to memory → Tutor adapts
 ```
 
 ---
@@ -155,69 +134,55 @@ Subject Tutor detects gap
 
 ```
 User speaks
-  → Web Speech API (browser, free, no setup)
-  → transcript string sent to POST /api/tutor/message
-  → Orchestrator → Subject Tutor Agent
+  → Web Speech API (browser native, free)
+  → transcript → POST /api/tutor/message { voiceMode: true }
   → Claude response text
   → POST /api/tts (ElevenLabs)
-  → audio blob returned
+  → audio/mpeg blob
   → browser plays audio
 ```
 
-**Latency target:** under 3 seconds end-to-end for demo
+**Latency target:** under 3 seconds end-to-end
+
+---
+
+## Agent Activity (visible in UI)
+
+Every agent response includes `agentActivity[]` — shown in the sidebar during sessions.
+This makes the multi-agent system visible to judges.
+
+```typescript
+[
+  { agent: 'orchestrator', action: 'Reading student memory...', timestamp },
+  { agent: 'orchestrator', action: 'Exam in 3 days → Math Tutor activated', timestamp },
+  { agent: 'tutor',        action: 'Gap detected in integration by parts', timestamp },
+  { agent: 'assessment',   action: 'Generating 2 targeted problems', timestamp },
+  { agent: 'memory',       action: 'Session logged, XP +40', timestamp },
+]
+```
 
 ---
 
 ## Data Flow: First Session
 
 ```
-1. User fills onboarding form
-   POST /api/onboard { name, subjects, examDates, goals }
+1. POST /api/onboard
+   → Orchestrator generates RoadmapNode[] via Claude
+   → Student record created in Postgres
+   → Response: { studentId, studyPath, xp: 0, streak: 0 }
 
-2. Backend: Orchestrator Agent generates initial study path
-   Claude call with structured output → RoadmapNode[]
+2. GET /api/study-path/:studentId
+   → Read Postgres → calculate priorities by exam proximity
+   → Response: StudyPathResponse
 
-3. OpenClaw: creates student memory record
+3. POST /api/tutor/message
+   → Read memory from Postgres
+   → Orchestrator → Subject Tutor Agent (with memory injected)
+   → Claude response + agentActivity[]
+   → Write session update to Postgres
+   → Response: TutorMessageResponse
 
-4. Backend responds: { studentId, studyPath, xp: 0, streak: 0 }
-
-5. Frontend: shows animated dashboard with roadmap
-
-6. User taps subject → opens tutor
-   POST /api/tutor/message { studentId, subject, message, voiceMode }
-
-7. Backend: Orchestrator reads memory → spawns Subject Tutor Agent
-   Agent has full context injected
-
-8. Response: { reply, agentActivity[], memoryUpdated }
-
-9. Frontend: shows reply (text + voice), shows agent activity sidebar
-
-10. OpenClaw: cron job scheduled for exam reminder via Telegram
+4. POST /api/tts
+   → ElevenLabs converts reply to audio
+   → Returns audio/mpeg
 ```
-
----
-
-## Agent Activity Sidebar (Frontend Component)
-
-The frontend shows live agent reasoning as events stream in.
-Backend sends `agentActivity[]` with each response:
-
-```typescript
-type AgentActivity = {
-  agent: 'orchestrator' | 'tutor' | 'assessment' | 'memory'
-  action: string   // human-readable description
-  timestamp: Date
-}
-
-// Example:
-[
-  { agent: 'orchestrator', action: 'Reading Ana\'s memory...', timestamp },
-  { agent: 'orchestrator', action: 'Exam in 3 days → activating Math Tutor', timestamp },
-  { agent: 'tutor',        action: 'Detected gap in integration by parts', timestamp },
-  { agent: 'assessment',   action: 'Generating 2 targeted problems', timestamp },
-  { agent: 'memory',       action: 'Session logged, streak updated', timestamp },
-]
-```
-
-This makes the agentic system **visible** to judges during the demo.
