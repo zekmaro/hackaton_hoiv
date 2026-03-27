@@ -22,7 +22,9 @@ Rules:
 - Feel free to react naturally to what they say before asking the next question
 - After 3-4 exchanges, when you have enough info on all 5 points, stop asking and output:
 
-READY:{"subjects":[{"name":"subject name","level":"university|high school|self-learning","currentStruggles":"what they find hard"}],"goals":"their goals","examDates":[{"subject":"subject name","date":"YYYY-MM-DD"}],"studyHoursPerDay":2,"learningStyle":"examples|theory|mixed"}
+READY:{"subjects":[{"name":"subject name","level":"university|high school|self-learning","currentStruggles":"what they find hard"}],"goals":"their goals","examDates":[{"subject":"subject name","date":"YYYY-MM-DD"}],"studyHoursPerDay":2,"learningStyle":"examples"}
+
+CRITICAL: learningStyle must be EXACTLY one of these three strings: "examples" or "theory" or "mixed". No other values.
 
 Important: only output READY: when you genuinely have enough info. If exam dates are not mentioned assume no exams and use empty array. studyHoursPerDay default to 2 if not mentioned.`
 }
