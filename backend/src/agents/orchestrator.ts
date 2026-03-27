@@ -17,11 +17,15 @@ export async function runOnboardInterview(
   name: string,
   messages: OnboardChatMessage[],
 ): Promise<{ reply: string; done: boolean; extracted?: ExtractedOnboardData }> {
+  const apiMessages = messages.length > 0
+    ? messages.map(m => ({ role: m.role, content: m.content }))
+    : [{ role: 'user' as const, content: `Hi, my name is ${name}` }]
+
   const response = await client.messages.create({
     model: 'claude-haiku-4-5-20251001', // fast for chat turns
     max_tokens: 512,
     system: onboardInterviewPrompt(name),
-    messages: messages.map(m => ({ role: m.role, content: m.content })),
+    messages: apiMessages,
   })
 
   const text = response.content[0].type === 'text' ? response.content[0].text : ''
