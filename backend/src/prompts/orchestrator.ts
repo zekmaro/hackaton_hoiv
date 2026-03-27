@@ -23,22 +23,35 @@ Always respond with a JSON object containing:
 Be concise, data-driven, and always prioritize based on exam proximity first, then knowledge gaps.`
 }
 
-export function studyPathPrompt(onboardData: unknown): string {
-  return `You are an AI study path generator. Given a student's subjects, exam dates, and goals,
-generate a prioritized study roadmap.
+export function studyPathPrompt(onboardData: unknown, syllabus?: string): string {
+  return `You are an AI study path generator. Build a personalized, realistic study roadmap.
 
-Student onboarding data:
+Student profile:
 ${JSON.stringify(onboardData, null, 2)}
 
-Return a JSON array of RoadmapNode objects with these exact fields:
-- id: string (unique, e.g. "math-integration-1")
-- subject: string
-- topic: string
-- status: "available" | "locked" (first node of each subject = available, rest = locked)
-- priority: "low" | "medium" | "high" | "urgent" (based on exam proximity)
-- estimatedMinutes: number
-- dependsOn: string[] (ids of prerequisite nodes)
-- examDate: string (ISO 8601, only if tied to a specific exam)
+${syllabus ? `Student's actual syllabus/curriculum (use this to define the exact topics):
+${syllabus}` : ''}
 
-Order nodes by priority descending. Urgent = exam within 3 days.`
+Rules for generating the roadmap:
+- If a syllabus is provided, use its exact topics and order — do not invent topics
+- If no syllabus, generate logical topic progression for the subject and level
+- Prioritize by: exam proximity first, then student's stated struggles, then logical prerequisites
+- Students with no exam dates get "medium" priority across the board
+- First node of each subject = "available", rest = "locked"
+- Urgent = exam within 3 days, high = exam within 2 weeks, medium = exam within a month, low = no exam
+- estimatedMinutes should reflect topic complexity and student's hours/day
+- Generate 5-8 nodes per subject — not too many, not too few
+- Include a "Mock Exam + Review" node at the end for subjects with exam dates
+
+Return a JSON array of RoadmapNode objects with these exact fields:
+- id: string (unique slug, e.g. "math-integration-1")
+- subject: string (match the subject name from profile)
+- topic: string (specific — "Integration by Parts" not just "Integration")
+- status: "available" | "locked"
+- priority: "low" | "medium" | "high" | "urgent"
+- estimatedMinutes: number
+- dependsOn: string[] (prerequisite node ids)
+- examDate: string | undefined (ISO 8601, only if subject has an exam)
+
+Return ONLY the raw JSON array. No markdown, no code blocks, no explanation.`
 }

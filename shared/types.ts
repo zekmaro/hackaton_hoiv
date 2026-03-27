@@ -157,12 +157,42 @@ export interface StudentMemory {
 
 // ─── Onboarding ───────────────────────────────────────────────────────────────
 
-export interface OnboardRequest {
+// Conversational onboarding — chat message
+export interface OnboardChatMessage {
+  role: 'user' | 'assistant'
+  content: string
+}
+
+// POST /api/onboard/chat — one turn of the interview
+export interface OnboardChatRequest {
   name: string
-  subjects: string[]
-  examDates: ExamDate[]
+  messages: OnboardChatMessage[]
+}
+
+export interface OnboardChatResponse {
+  reply: string           // AI's next message to show the student
+  done: boolean           // true when AI has collected enough info
+  extracted?: ExtractedOnboardData  // only present when done: true
+}
+
+// Structured data Claude extracts from the conversation
+export interface ExtractedOnboardData {
+  subjects: {
+    name: string          // e.g. "Calculus 1"
+    level: string         // e.g. "university", "high school"
+    currentStruggles: string
+  }[]
   goals: string
+  examDates: ExamDate[]   // empty array if no exams
   studyHoursPerDay: number
+  learningStyle: 'examples' | 'theory' | 'mixed'
+}
+
+// POST /api/onboard/complete — finalizes onboarding, creates student + roadmap
+export interface OnboardCompleteRequest {
+  name: string
+  extracted: ExtractedOnboardData
+  syllabus?: string       // optional pasted syllabus text
 }
 
 export interface OnboardResponse {
@@ -171,6 +201,15 @@ export interface OnboardResponse {
   xp: number
   streak: number
   nextFocus: string
+}
+
+// Legacy — kept for backwards compatibility
+export interface OnboardRequest {
+  name: string
+  subjects: string[]
+  examDates: ExamDate[]
+  goals: string
+  studyHoursPerDay: number
 }
 
 // ─── TTS ──────────────────────────────────────────────────────────────────────

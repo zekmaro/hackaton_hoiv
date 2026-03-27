@@ -8,13 +8,13 @@ When in doubt, read this file before taking any action.
 ## What We Are Building
 
 An AI-powered personalized study platform where students get a dynamic study roadmap,
-talk to a voice AI tutor per subject, and receive proactive reminders via Telegram.
+talk to a voice AI tutor per subject, and receive proactive reminders.
 
 **Core loop:**
-Onboarding → AI Study Roadmap → Voice Tutor Sessions → Memory Updates → Proactive Reminders
+Onboarding → AI Study Roadmap → Voice Tutor Sessions → Memory Updates → Next Session
 
-**Key differentiator:** The AI tutor remembers everything across sessions (via OpenClaw memory)
-and multiple specialized agents collaborate behind the scenes.
+**Key differentiator:** The AI tutor remembers everything across sessions via Postgres.
+Multiple specialized Claude agents collaborate: orchestrator, subject tutors, assessment agent.
 
 ---
 
@@ -38,11 +38,10 @@ and multiple specialized agents collaborate behind the scenes.
 │
 ├── backend/                   ← PERSON A owns this entirely
 │   ├── agents/                ← orchestrator + subject tutor agents
-│   ├── skills/                ← OpenClaw skill definitions
-│   ├── memory/                ← OpenClaw memory read/write helpers
+│   ├── skills/                ← background job definitions (Telegram reminders etc)
+│   ├── memory/                ← Postgres read/write helpers
 │   ├── api/                   ← Express route handlers
-│   ├── prompts/               ← all Claude system prompts as .ts files
-│   └── package.json
+│   └── prompts/               ← all Claude system prompts as .ts files
 │
 ├── shared/                    ← BOTH people read, NEITHER modifies alone
 │   └── types.ts               ← single source of truth for all shared types
@@ -52,7 +51,7 @@ and multiple specialized agents collaborate behind the scenes.
     ├── api-contract.md
     ├── design-system.md
     ├── work-split.md
-    └── git-workflow.md
+    └── hosting.md
 ```
 
 ---
@@ -91,22 +90,26 @@ and multiple specialized agents collaborate behind the scenes.
 - Tailwind CSS + shadcn/ui
 - Framer Motion (animations)
 - Web Speech API (speech-to-text, built into browser)
-- `fetch` / `axios` for API calls
+- `axios` for API calls
 - React Router v6
 
 ### Backend (Person A)
 - Node.js + Express + TypeScript
 - Anthropic SDK (`@anthropic-ai/sdk`) — `claude-sonnet-4-6`
-- OpenClaw (local agent, memory, cron, Telegram)
+- Postgres (`pg`) — student memory, session history
 - ElevenLabs SDK (text-to-speech)
 - `zod` for request validation
+
+### Memory Architecture
+Student state lives in Postgres. Before every Claude call, we read the student's memory
+from DB and inject it into the system prompt. After every session, we write updates back.
+This gives the tutor full cross-session memory with zero external dependencies.
 
 ---
 
 ## Design Tokens (use these everywhere)
 
 ```typescript
-// Always use these exact values
 colors: {
   primary:    '#F59E0B',   // gold orange — main CTA, highlights
   bgLight:    '#F8FAFC',   // soft white — light mode background
@@ -122,23 +125,22 @@ colors: {
 ## Hosting
 
 - Frontend: Vercel (auto-deploys from `frontend/` on push to `main`)
-- Backend: Railway Service (auto-deploys from `backend/` on push to `main`)
-- OpenClaw: Railway Service (official template, one-click at railway.com/deploy/openclaw-complete-setup)
+- Backend: Railway Service (root dir: `backend/`, auto-deploys on push to `main`)
+- Database: Railway Postgres addon (DATABASE_URL auto-injected into backend)
 
 ## API Base
 
-- Frontend dev: `http://localhost:3001` via `VITE_API_URL=http://localhost:3001`
-- Frontend prod: `VITE_API_URL` set to Railway backend URL in Vercel env vars
-- Backend talks to OpenClaw via `OPENCLAW_URL` env var (Railway internal URL)
-- All endpoints documented in `docs/api-contract.md`
-- All request/response types defined in `shared/types.ts`
+- Frontend dev: `VITE_API_URL=http://localhost:3001`
+- Frontend prod: `VITE_API_URL` = Railway backend URL (set in Vercel env vars)
+- All endpoints: `docs/api-contract.md`
+- All types: `shared/types.ts`
 
 ---
 
 ## Key Docs to Read
 
-- Architecture overview: `docs/architecture.md`
-- Full API contract: `docs/api-contract.md`
+- Architecture: `docs/architecture.md`
+- API contract: `docs/api-contract.md`
 - Design system: `docs/design-system.md`
-- Who does what: `docs/work-split.md`
-- Git workflow: `docs/git-workflow.md`
+- Work split: `docs/work-split.md`
+- Hosting setup: `docs/hosting.md`
