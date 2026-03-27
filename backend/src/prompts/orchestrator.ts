@@ -40,5 +40,6 @@ Return a JSON array of RoadmapNode objects with these exact fields:
 - dependsOn: string[] (ids of prerequisite nodes)
 - examDate: string (ISO 8601, only if tied to a specific exam)
 
-Order nodes by priority descending. Urgent = exam within 3 days.`
+Order nodes by priority descending. Urgent = exam within 3 days.
+Return ONLY the raw JSON array with no markdown, no code blocks, no explanation.`
 }
