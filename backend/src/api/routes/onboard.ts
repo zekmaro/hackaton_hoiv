@@ -49,9 +49,9 @@ const completeSchema = z.object({
     examDates: z.array(z.object({
       subject: z.string(),
       date: z.string(),
-    })),
-    studyHoursPerDay: z.number(),
-    learningStyle: z.enum(['examples', 'theory', 'mixed']),
+    })).default([]),
+    studyHoursPerDay: z.coerce.number().default(2),
+    learningStyle: z.enum(['examples', 'theory', 'mixed']).default('mixed'),
   }),
   syllabus: z.string().optional(),
 })
