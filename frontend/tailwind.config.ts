@@ -6,10 +6,10 @@ export default {
   theme: {
     extend: {
       colors: {
-        primary: '#F59E0B',
+        primary: '#FF8C00',
       },
       fontFamily: {
-        sans: ['Inter', 'system-ui', 'sans-serif'],
+        sans: ['Nunito', 'Inter', 'system-ui', 'sans-serif'],
       },
     },
   },

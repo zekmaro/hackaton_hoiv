@@ -4,45 +4,45 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  --brand-primary: #F59E0B;
-  --brand-bg-light: #F8FAFC;
+  --brand-primary: #FF8C00;
+  --brand-bg-light: #FFEC99;
   --brand-bg-dark: #0F172A;
   --brand-blue: #3B82F6;
   --brand-green: #22C55E;
   --brand-purple: #8B5CF6;
 
   --background: var(--brand-bg-light);
-  --foreground: #0F172A;
-  --card: #FFFFFF;
-  --card-foreground: #0F172A;
-  --popover: #FFFFFF;
-  --popover-foreground: #0F172A;
+  --foreground: #5A3E36;
+  --card: #FBF6EE;
+  --card-foreground: #5A3E36;
+  --popover: #FBF6EE;
+  --popover-foreground: #5A3E36;
   --primary: var(--brand-primary);
-  --primary-foreground: #0F172A;
-  --secondary: #E2E8F0;
-  --secondary-foreground: #0F172A;
-  --muted: #E2E8F0;
-  --muted-foreground: #475569;
+  --primary-foreground: #FFF6DE;
+  --secondary: #EFE3D3;
+  --secondary-foreground: #5A3E36;
+  --muted: #EFE3D3;
+  --muted-foreground: #6B7280;
   --accent: #DBEAFE;
-  --accent-foreground: #0F172A;
+  --accent-foreground: #5A3E36;
   --destructive: #DC2626;
   --destructive-foreground: #FFFFFF;
-  --border: #CBD5E1;
-  --input: #E2E8F0;
+  --border: #E6D7C5;
+  --input: #EFE3D3;
   --ring: #3B82F6;
   --chart-1: var(--brand-primary);
   --chart-2: var(--brand-blue);
   --chart-3: var(--brand-green);
   --chart-4: var(--brand-purple);
-  --chart-5: #0F172A;
+  --chart-5: #5A3E36;
   --radius: 0.25rem;
-  --sidebar: #FFFFFF;
-  --sidebar-foreground: #0F172A;
+  --sidebar: #FBF6EE;
+  --sidebar-foreground: #5A3E36;
   --sidebar-primary: var(--brand-primary);
-  --sidebar-primary-foreground: #0F172A;
-  --sidebar-accent: #E2E8F0;
-  --sidebar-accent-foreground: #0F172A;
-  --sidebar-border: #CBD5E1;
+  --sidebar-primary-foreground: #FFF6DE;
+  --sidebar-accent: #EFE3D3;
+  --sidebar-accent-foreground: #5A3E36;
+  --sidebar-border: #E6D7C5;
   --sidebar-ring: #3B82F6;
 }
 
@@ -82,9 +82,9 @@
 }
 
 @theme inline {
-  --font-sans: 'Instrument Sans', system-ui, sans-serif;
-  --font-mono: 'JetBrains Mono', monospace;
-  --font-display: 'Instrument Serif', Georgia, serif;
+  --font-sans: 'Nunito', 'Inter', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+  --font-display: 'Nunito', 'Inter', system-ui, sans-serif;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);

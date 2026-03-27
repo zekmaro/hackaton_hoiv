@@ -34,8 +34,8 @@ export function Navigation() {
       <nav 
         className={`mx-auto transition-all duration-500 ${
           isScrolled || isMobileMenuOpen
-            ? "bg-background/80 backdrop-blur-xl border border-foreground/10 rounded-2xl shadow-lg max-w-[1200px]"
-            : "bg-transparent max-w-[1400px]"
+            ? "bg-[#FFEC99]/90 backdrop-blur-xl border border-foreground/10 rounded-2xl shadow-lg max-w-[1200px]"
+            : "bg-[#FFEC99]/90 max-w-[1400px]"
         }`}
       >
         <div 
@@ -70,7 +70,7 @@ export function Navigation() {
             </a>
             <Button
               size="sm"
-              className={`bg-amber-400 hover:bg-amber-500 text-white rounded-full transition-all duration-500 ${isScrolled ? "px-4 h-8 text-xs" : "px-6"}`}
+              className={`bg-[#FF8C00] hover:bg-[#e07b00] text-white rounded-full transition-all duration-500 ${isScrolled ? "px-4 h-8 text-xs" : "px-6"}`}
             >
               Start learning
             </Button>
@@ -131,13 +131,13 @@ export function Navigation() {
           >
             <Button 
               variant="outline" 
-              className="flex-1 rounded-full h-14 text-base border-amber-200 text-foreground hover:bg-amber-50"
+              className="flex-1 rounded-full h-14 text-base border-[#FF8C00]/30 text-foreground hover:bg-[#FFEC99]/60"
               onClick={() => setIsMobileMenuOpen(false)}
             >
               Sign in
             </Button>
             <Button 
-              className="flex-1 bg-amber-400 hover:bg-amber-500 text-white rounded-full h-14 text-base"
+              className="flex-1 bg-[#FF8C00] hover:bg-[#e07b00] text-white rounded-full h-14 text-base"
               onClick={() => setIsMobileMenuOpen(false)}
             >
               Start learning

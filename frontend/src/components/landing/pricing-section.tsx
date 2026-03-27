@@ -91,10 +91,10 @@ export function PricingSection() {
           </span>
           <button
             onClick={() => setIsAnnual(!isAnnual)}
-            className="relative w-14 h-7 bg-foreground/10 rounded-full p-1 transition-colors hover:bg-foreground/20"
+            className="relative w-14 h-7 bg-[#FFEC99] rounded-full p-1 transition-colors border border-[#FF8C00]/30 hover:bg-[#FFE27A]"
           >
             <div
-              className={`w-5 h-5 bg-foreground rounded-full transition-transform duration-300 ${
+              className={`w-5 h-5 bg-[#FF8C00] rounded-full transition-transform duration-300 ${
                 isAnnual ? "translate-x-7" : "translate-x-0"
               }`}
             />
@@ -107,7 +107,7 @@ export function PricingSection() {
             Annual
           </span>
           {isAnnual && savingsPercent !== null && (
-            <span className="ml-2 rounded-full border border-foreground/10 bg-background/80 px-2.5 py-1 text-xs font-mono text-foreground">
+            <span className="ml-2 rounded-full border border-[#FF8C00]/30 bg-[#FFEC99]/70 px-2.5 py-1 text-xs font-mono text-foreground">
               Save {savingsPercent}%
             </span>
           )}
@@ -123,7 +123,7 @@ export function PricingSection() {
               }`}
             >
               {plan.popular && (
-                <span className="absolute -top-3 left-8 px-3 py-1 bg-foreground text-primary-foreground text-xs font-mono uppercase tracking-widest">
+                <span className="absolute -top-3 left-8 px-3 py-1 bg-[#FF8C00] text-white text-xs font-mono uppercase tracking-widest">
                   Most Popular
                 </span>
               )}
@@ -165,8 +165,8 @@ export function PricingSection() {
               <button
                 className={`w-full py-4 flex items-center justify-center gap-2 text-sm font-medium transition-all group ${
                   plan.popular
-                    ? "bg-foreground text-primary-foreground hover:bg-foreground/90"
-                    : "border border-foreground/20 text-foreground hover:border-foreground hover:bg-foreground/5"
+                    ? "bg-[#FF8C00] text-white hover:bg-[#e07b00]"
+                    : "border border-[#FF8C00]/30 text-foreground hover:border-[#FF8C00] hover:bg-[#FFEC99]/60"
                 }`}
               >
                 {plan.cta}

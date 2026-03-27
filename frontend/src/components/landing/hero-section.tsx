@@ -120,7 +120,7 @@ export function HeroSection() {
           >
             <Button
               size="lg"
-              className="bg-amber-400 hover:bg-amber-500 text-white px-8 h-14 text-base rounded-full group shadow-sm"
+              className="bg-[#FF8C00] hover:bg-[#e07b00] text-white px-8 h-14 text-base rounded-full group shadow-sm"
             >
               Start learning free
               <ArrowRight className="w-4 h-4 ml-2 transition-transform group-hover:translate-x-1" />
@@ -128,7 +128,7 @@ export function HeroSection() {
             <Button
               size="lg"
               variant="outline"
-              className="h-14 px-8 text-base rounded-full border-amber-200 text-foreground hover:bg-amber-50"
+              className="h-14 px-8 text-base rounded-full border-[#FF8C00]/30 text-foreground hover:bg-[#FFEC99]/60"
             >
               See how it works
             </Button>
