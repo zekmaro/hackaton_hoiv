@@ -7,7 +7,7 @@ import { Menu, X } from "lucide-react";
 const navLinks = [
   { name: "Features", href: "#features" },
   { name: "How it works", href: "#how-it-works" },
-  { name: "Developers", href: "#developers" },
+  { name: "Study tools", href: "#developers" },
   { name: "Pricing", href: "#pricing" },
 ];
 
@@ -45,7 +45,7 @@ export function Navigation() {
         >
           {/* Logo */}
           <a href="#" className="flex items-center gap-2 group">
-            <span className={`font-display tracking-tight transition-all duration-500 ${isScrolled ? "text-xl" : "text-2xl"}`}>Optimus</span>
+            <span className={`font-display tracking-tight transition-all duration-500 ${isScrolled ? "text-xl" : "text-2xl"}`}>StudyUp</span>
             <span className={`text-muted-foreground font-mono transition-all duration-500 ${isScrolled ? "text-[10px] mt-0.5" : "text-xs mt-1"}`}>TM</span>
           </a>
 
@@ -70,9 +70,9 @@ export function Navigation() {
             </a>
             <Button
               size="sm"
-              className={`bg-foreground hover:bg-foreground/90 text-background rounded-full transition-all duration-500 ${isScrolled ? "px-4 h-8 text-xs" : "px-6"}`}
+              className={`bg-amber-400 hover:bg-amber-500 text-white rounded-full transition-all duration-500 ${isScrolled ? "px-4 h-8 text-xs" : "px-6"}`}
             >
-              Start creating
+              Start learning
             </Button>
           </div>
 
@@ -131,16 +131,16 @@ export function Navigation() {
           >
             <Button 
               variant="outline" 
-              className="flex-1 rounded-full h-14 text-base"
+              className="flex-1 rounded-full h-14 text-base border-amber-200 text-foreground hover:bg-amber-50"
               onClick={() => setIsMobileMenuOpen(false)}
             >
               Sign in
             </Button>
             <Button 
-              className="flex-1 bg-foreground text-background rounded-full h-14 text-base"
+              className="flex-1 bg-amber-400 hover:bg-amber-500 text-white rounded-full h-14 text-base"
               onClick={() => setIsMobileMenuOpen(false)}
             >
-              Start creating
+              Start learning
             </Button>
           </div>
         </div>

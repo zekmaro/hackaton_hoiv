@@ -5,50 +5,50 @@ import { ArrowRight, Check } from "lucide-react";
 
 const plans = [
   {
-    name: "Starter",
-    description: "For individuals and small projects",
+    name: "Student",
+    description: "For solo learners getting started",
     price: { monthly: 0, annual: 0 },
     features: [
-      "Up to 3 projects",
-      "1GB storage",
-      "Community support",
-      "Basic analytics",
-      "SSL certificates",
+      "Personalized study path",
+      "AI tutor basics",
+      "Daily streaks",
+      "Study reminders",
+      "Core progress tracking",
     ],
     cta: "Start free",
     popular: false,
   },
   {
-    name: "Pro",
-    description: "For growing teams and businesses",
+    name: "Scholar",
+    description: "For serious exam prep and deep practice",
     price: { monthly: 29, annual: 24 },
     features: [
-      "Unlimited projects",
-      "100GB storage",
+      "Everything in Student",
+      "Advanced tutor sessions",
+      "Spaced repetition",
+      "Practice exams",
       "Priority support",
-      "Advanced analytics",
-      "Custom domains",
-      "Team collaboration",
-      "API access",
+      "Leaderboards",
+      "Goal tracking",
     ],
     cta: "Start trial",
     popular: true,
   },
   {
-    name: "Enterprise",
-    description: "For large-scale operations",
+    name: "Campus",
+    description: "For schools and learning organizations",
     price: { monthly: null, annual: null },
     features: [
-      "Everything in Pro",
-      "Unlimited storage",
-      "24/7 dedicated support",
-      "Custom integrations",
-      "SLA guarantee",
-      "On-premise option",
-      "Security audit",
+      "Everything in Scholar",
+      "Admin dashboards",
+      "Cohorts and groups",
+      "Dedicated success",
+      "Custom onboarding",
+      "Data exports",
+      "SLA options",
       "Custom contracts",
     ],
-    cta: "Contact sales",
+    cta: "Talk to us",
     popular: false,
   },
 ];
@@ -71,12 +71,12 @@ export function PricingSection() {
             Pricing
           </span>
           <h2 className="font-display text-5xl md:text-6xl lg:text-7xl tracking-tight text-foreground mb-6">
-            Simple, transparent
+            Simple, student-first
             <br />
             <span className="text-stroke">pricing</span>
           </h2>
           <p className="text-lg text-muted-foreground max-w-xl">
-            Start free and scale as you grow. No hidden fees, no surprises.
+            Start free and grow with your goals. No hidden fees, no surprises.
           </p>
         </div>
 
@@ -178,9 +178,9 @@ export function PricingSection() {
 
         {/* Bottom Note */}
         <p className="mt-12 text-center text-sm text-muted-foreground">
-          All plans include automatic updates, HTTPS, and DDoS protection.{" "}
+          All plans include updates, study reminders, and privacy-first settings.{" "}
           <a href="#" className="underline underline-offset-4 hover:text-foreground transition-colors">
-            Compare all features
+            Compare features
           </a>
         </p>
       </div>

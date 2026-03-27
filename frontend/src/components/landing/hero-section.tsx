@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { ArrowRight } from "lucide-react";
 import { AnimatedSphere } from "./animated-sphere";
 
-const words = ["create", "build", "scale", "ship"];
+const words = ["learn", "practice", "remember", "pass"];
 
 export function HeroSection() {
   const [isVisible, setIsVisible] = useState(false);
@@ -57,25 +57,25 @@ export function HeroSection() {
       
       <div className="relative z-10 max-w-[1400px] mx-auto px-6 lg:px-12 py-32 lg:py-40">
         {/* Eyebrow */}
-        <div 
+        <div
           className={`mb-8 transition-all duration-700 ${
             isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
           }`}
         >
           <span className="inline-flex items-center gap-3 text-sm font-mono text-muted-foreground">
             <span className="w-8 h-px bg-foreground/30" />
-            The platform for modern teams
+            Your AI study buddy
           </span>
         </div>
         
         {/* Main headline */}
         <div className="mb-12">
-          <h1 
+          <h1
             className={`text-[clamp(3rem,12vw,10rem)] font-display leading-[0.9] tracking-tight transition-all duration-1000 ${
               isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"
             }`}
           >
-            <span className="block">The platform</span>
+            <span className="block">Study smarter.</span>
             <span className="block">
               to{" "}
               <span className="relative inline-block">
@@ -103,34 +103,34 @@ export function HeroSection() {
         
         {/* Description */}
         <div className="grid lg:grid-cols-2 gap-12 lg:gap-24 items-end">
-          <p 
+          <p
             className={`text-xl lg:text-2xl text-muted-foreground leading-relaxed max-w-xl transition-all duration-700 delay-200 ${
               isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
             }`}
           >
-            Your toolkit to stop configuring and start innovating. 
-            Securely build, deploy, and scale the best experiences.
+            Personalized study paths, an AI tutor for every subject, and
+            game-like streaks that keep you going.
           </p>
           
           {/* CTAs */}
-          <div 
+          <div
             className={`flex flex-col sm:flex-row items-start gap-4 transition-all duration-700 delay-300 ${
               isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
             }`}
           >
-            <Button 
-              size="lg" 
-              className="bg-foreground hover:bg-foreground/90 text-background px-8 h-14 text-base rounded-full group"
+            <Button
+              size="lg"
+              className="bg-amber-400 hover:bg-amber-500 text-white px-8 h-14 text-base rounded-full group shadow-sm"
             >
-              Start free trial
+              Start learning free
               <ArrowRight className="w-4 h-4 ml-2 transition-transform group-hover:translate-x-1" />
             </Button>
-            <Button 
-              size="lg" 
-              variant="outline" 
-              className="h-14 px-8 text-base rounded-full border-foreground/20 hover:bg-foreground/5"
+            <Button
+              size="lg"
+              variant="outline"
+              className="h-14 px-8 text-base rounded-full border-amber-200 text-foreground hover:bg-amber-50"
             >
-              Watch demo
+              See how it works
             </Button>
           </div>
         </div>
@@ -147,10 +147,10 @@ export function HeroSection() {
           {[...Array(2)].map((_, i) => (
             <div key={i} className="flex gap-16">
               {[
-                { value: "20 days", label: "saved on builds", company: "NETFLIX" },
-                { value: "98%", label: "faster deployment", company: "STRIPE" },
-                { value: "300%", label: "throughput increase", company: "LINEAR" },
-                { value: "6x", label: "faster to ship", company: "NOTION" },
+                { value: "45 min", label: "average daily study", company: "LEARNERS" },
+                { value: "3x", label: "faster recall", company: "SPACED" },
+                { value: "12k", label: "weekly streaks", company: "STUDENTS" },
+                { value: "85%", label: "exam confidence", company: "COMMUNITY" },
               ].map((stat) => (
                 <div key={`${stat.company}-${i}`} className="flex items-baseline gap-4">
                   <span className="text-4xl lg:text-5xl font-display">{stat.value}</span>

@@ -52,30 +52,30 @@ export function CtaSection() {
               {/* Left content */}
               <div className="flex-1">
                 <h2 className="text-4xl lg:text-7xl font-display tracking-tight mb-8 leading-[0.95]">
-                  Ready to build
+                  Ready to make
                   <br />
-                  something great?
+                  studying feel good?
                 </h2>
 
                 <p className="text-xl text-muted-foreground mb-12 leading-relaxed max-w-xl">
-                  Join thousands of teams shipping faster with Optimus. 
-                  Start free, scale infinitely.
+                  Join students turning stress into steady progress.
+                  Start free and grow your streak.
                 </p>
 
                 <div className="flex flex-col sm:flex-row items-start gap-4">
                   <Button
                     size="lg"
-                    className="bg-foreground hover:bg-foreground/90 text-background px-8 h-14 text-base rounded-full group"
+                    className="bg-amber-400 hover:bg-amber-500 text-white px-8 h-14 text-base rounded-full group shadow-sm"
                   >
-                    Start building free
+                    Start learning free
                     <ArrowRight className="w-4 h-4 ml-2 transition-transform group-hover:translate-x-1" />
                   </Button>
                   <Button
                     size="lg"
                     variant="outline"
-                    className="h-14 px-8 text-base rounded-full border-foreground/20 hover:bg-foreground/5"
+                    className="h-14 px-8 text-base rounded-full border-amber-200 text-foreground hover:bg-amber-50"
                   >
-                    Talk to sales
+                    See a demo
                   </Button>
                 </div>
 

@@ -5,52 +5,43 @@ import { Copy, Check } from "lucide-react";
 
 const codeExamples = [
   {
-    label: "Install",
-    code: `npm install @optimus/sdk
-
-# or
-yarn add @optimus/sdk
-pnpm add @optimus/sdk`,
+    label: "Plan",
+    code: `today:
+  - 25 min focus: Algebra
+  - 10 min quiz: Functions
+  - 5 min break`,
   },
   {
-    label: "Initialize",
-    code: `import { Optimus } from '@optimus/sdk'
-
-const optimus = new Optimus({
-  apiKey: process.env.OPTIMUS_KEY
-})`,
+    label: "Tutor",
+    code: `tutor.ask("Explain photosynthesis")
+tutor.practice(8)
+confidence: +12%`,
   },
   {
-    label: "Deploy",
-    code: `const app = await optimus.deploy({
-  name: 'my-app',
-  region: 'auto',
-  scaling: {
-    min: 1,
-    max: 100
-  }
-})
-
-console.log('Live at:', app.url)`,
+    label: "Review",
+    code: `spaced_review:
+  - Biology: 2 days
+  - History: 4 days
+  - Math: 1 week`,
   },
 ];
 
 const features = [
-  { 
-    title: "TypeScript native", 
-    description: "Full type safety with auto-generated types."
+  {
+    title: "XP and levels",
+    description: "Earn XP for every focused session.",
   },
-  { 
-    title: "Zero config", 
-    description: "Sensible defaults that just work."
+  {
+    title: "Streak tracking",
+    description: "Build momentum with daily streaks.",
   },
-  { 
-    title: "Edge-ready", 
-    description: "Runs anywhere: Node, Deno, Bun, browsers."
+  {
+    title: "Badges",
+    description: "Unlock milestones as you master topics.",
   },
-  { 
-    title: "12KB gzipped", 
-    description: "Lightweight with zero dependencies."
+  {
+    title: "Reminders",
+    description: "Smart nudges that keep you on track.",
   },
 ];
 
@@ -119,16 +110,16 @@ export function DevelopersSection() {
           >
             <span className="inline-flex items-center gap-3 text-sm font-mono text-muted-foreground mb-6">
               <span className="w-8 h-px bg-foreground/30" />
-              For developers
+              Study tools
             </span>
             <h2 className="text-4xl lg:text-6xl font-display tracking-tight mb-8">
-              Built by devs.
+              Motivation
               <br />
-              <span className="text-muted-foreground">For devs.</span>
+              <span className="text-muted-foreground">built in.</span>
             </h2>
             <p className="text-xl text-muted-foreground mb-12 leading-relaxed">
-              A thoughtfully designed SDK that gets out of your way. 
-              Ship faster with intuitive APIs and exceptional documentation.
+              Turn study time into progress you can see. Track XP, streaks,
+              and steady improvement.
             </p>
             
             {/* Features */}
@@ -154,11 +145,11 @@ export function DevelopersSection() {
               isVisible ? "opacity-100 translate-x-0" : "opacity-0 translate-x-8"
             }`}
           >
-            <div className="border border-foreground/10">
-              {/* Tabs */}
-              <div className="flex items-center border-b border-foreground/10">
-                {codeExamples.map((example, idx) => (
-                  <button
+              <div className="border border-foreground/10">
+                {/* Tabs */}
+                <div className="flex items-center border-b border-foreground/10">
+                  {codeExamples.map((example, idx) => (
+                    <button
                     key={example.label}
                     type="button"
                     onClick={() => setActiveTab(idx)}

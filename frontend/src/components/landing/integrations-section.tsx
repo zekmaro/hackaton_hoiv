@@ -3,18 +3,18 @@
 import { useEffect, useState, useRef } from "react";
 
 const integrations = [
-  { name: "GitHub", category: "Version Control" },
-  { name: "Slack", category: "Communication" },
-  { name: "Stripe", category: "Payments" },
-  { name: "PostgreSQL", category: "Database" },
-  { name: "Redis", category: "Cache" },
-  { name: "AWS", category: "Cloud" },
-  { name: "MongoDB", category: "Database" },
-  { name: "Vercel", category: "Hosting" },
-  { name: "Figma", category: "Design" },
-  { name: "Linear", category: "Project Management" },
-  { name: "Notion", category: "Documentation" },
-  { name: "OpenAI", category: "AI/ML" },
+  { name: "Pomodoro", category: "Focus sprints" },
+  { name: "Spaced Repetition", category: "Memory boost" },
+  { name: "Active Recall", category: "Deep learning" },
+  { name: "Practice Quizzes", category: "Self-checks" },
+  { name: "Daily Goals", category: "Consistency" },
+  { name: "Streaks", category: "Motivation" },
+  { name: "XP Levels", category: "Progress" },
+  { name: "Badges", category: "Milestones" },
+  { name: "Leaderboards", category: "Friendly competition" },
+  { name: "Exam Planner", category: "Deadlines" },
+  { name: "Study Reminders", category: "Habits" },
+  { name: "AI Tutor", category: "Guidance" },
 ];
 
 export function IntegrationsSection() {
@@ -44,16 +44,16 @@ export function IntegrationsSection() {
         >
           <span className="inline-flex items-center gap-3 text-sm font-mono text-muted-foreground mb-6">
             <span className="w-8 h-px bg-foreground/30" />
-            Integrations
+            Study system
             <span className="w-8 h-px bg-foreground/30" />
           </span>
           <h2 className="text-4xl lg:text-6xl font-display tracking-tight mb-6">
-            Works with everything
+            Built on proven
             <br />
-            you already use.
+            learning methods.
           </h2>
           <p className="text-xl text-muted-foreground">
-            200+ pre-built integrations. Connect your entire stack in minutes.
+            Science-backed techniques, game-like progress, and habits that stick.
           </p>
         </div>
 

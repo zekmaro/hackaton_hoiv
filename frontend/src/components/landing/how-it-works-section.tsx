@@ -5,38 +5,34 @@ import { useEffect, useRef, useState } from "react";
 const steps = [
   {
     number: "I",
-    title: "Connect your tools",
-    description: "Integrate with your existing stack in minutes. We support 200+ data sources out of the box.",
-    code: `import { optimus } from '@optimus/core'
-
-optimus.connect({
-  source: 'your-database',
-  sync: true
-})`,
+    title: "Tell us your goals",
+    description: "Add subjects, exam dates, and goals. We learn how you learn.",
+    code: `student: "Aisha"
+subjects: ["Math", "Biology", "History"]
+exam_dates: {
+  Math: "May 16",
+  Biology: "May 21"
+}`,
   },
   {
     number: "II",
-    title: "Build your workflow",
-    description: "Design powerful automations with our visual builder or write code directly.",
-    code: `optimus.workflow('process', {
-  trigger: 'event',
-  actions: [
-    'validate',
-    'transform', 
-    'deliver'
-  ]
-})`,
+    title: "Get your study path",
+    description: "A dynamic roadmap appears instantly and adjusts as you progress.",
+    code: `week_1:
+  - Foundations + recall quiz
+  - 25 min Pomodoro sessions
+week_2:
+  - Mixed practice
+  - Spaced review`,
   },
   {
     number: "III",
-    title: "Ship to production",
-    description: "Deploy globally with zero configuration. Your app goes live in under 30 seconds.",
-    code: `optimus.deploy({
-  target: 'production',
-  regions: 'auto'
-})
-
-// Deployed to 12 regions`,
+    title: "Practice with your AI tutor",
+    description: "Ask questions, generate practice, and track your streaks.",
+    code: `tutor.ask("Explain derivatives")
+tutor.practice(10)
+streak: +1 day
+xp: +120`,
   },
 ];
 
@@ -68,7 +64,7 @@ export function HowItWorksSection() {
     <section
       id="how-it-works"
       ref={sectionRef}
-      className="relative py-24 lg:py-32 bg-foreground text-background overflow-hidden"
+      className="relative py-24 lg:py-32 bg-amber-50 text-foreground overflow-hidden"
     >
       {/* Diagonal lines pattern */}
       <div className="absolute inset-0 opacity-[0.03] pointer-events-none">
@@ -86,9 +82,9 @@ export function HowItWorksSection() {
       <div className="relative z-10 max-w-[1400px] mx-auto px-6 lg:px-12">
         {/* Header */}
         <div className="mb-16 lg:mb-24">
-          <span className="inline-flex items-center gap-3 text-sm font-mono text-background/50 mb-6">
-            <span className="w-8 h-px bg-background/30" />
-            Process
+            <span className="inline-flex items-center gap-3 text-sm font-mono text-foreground/50 mb-6">
+            <span className="w-8 h-px bg-foreground/30" />
+            How it works
           </span>
           <h2
             className={`text-4xl lg:text-6xl font-display tracking-tight transition-all duration-700 ${
@@ -97,7 +93,7 @@ export function HowItWorksSection() {
           >
             Three steps.
             <br />
-            <span className="text-background/50">Infinite possibilities.</span>
+            <span className="text-foreground/50">Daily progress.</span>
           </h2>
         </div>
 
@@ -110,25 +106,25 @@ export function HowItWorksSection() {
                 key={step.number}
                 type="button"
                 onClick={() => setActiveStep(index)}
-                className={`w-full text-left py-8 border-b border-background/10 transition-all duration-500 group ${
+                className={`w-full text-left py-8 border-b border-foreground/10 transition-all duration-500 group ${
                   activeStep === index ? "opacity-100" : "opacity-40 hover:opacity-70"
                 }`}
               >
                 <div className="flex items-start gap-6">
-                  <span className="font-display text-3xl text-background/30">{step.number}</span>
+                  <span className="font-display text-3xl text-foreground/30">{step.number}</span>
                   <div className="flex-1">
                     <h3 className="text-2xl lg:text-3xl font-display mb-3 group-hover:translate-x-2 transition-transform duration-300">
                       {step.title}
                     </h3>
-                    <p className="text-background/60 leading-relaxed">
+                    <p className="text-foreground/70 leading-relaxed">
                       {step.description}
                     </p>
                     
                     {/* Progress indicator */}
                     {activeStep === index && (
-                      <div className="mt-4 h-px bg-background/20 overflow-hidden">
+                      <div className="mt-4 h-px bg-foreground/20 overflow-hidden">
                         <div 
-                          className="h-full bg-background w-0"
+                          className="h-full bg-foreground w-0"
                           style={{
                             animation: 'progress 5s linear forwards'
                           }}
@@ -143,20 +139,20 @@ export function HowItWorksSection() {
 
           {/* Code display */}
           <div className="lg:sticky lg:top-32 self-start">
-            <div className="border border-background/10 overflow-hidden">
+            <div className="border border-foreground/10 overflow-hidden bg-background">
               {/* Window header */}
-              <div className="px-6 py-4 border-b border-background/10 flex items-center justify-between">
+              <div className="px-6 py-4 border-b border-foreground/10 flex items-center justify-between">
                 <div className="flex gap-2">
-                  <div className="w-3 h-3 rounded-full bg-background/20" />
-                  <div className="w-3 h-3 rounded-full bg-background/20" />
-                  <div className="w-3 h-3 rounded-full bg-background/20" />
+                  <div className="w-3 h-3 rounded-full bg-foreground/20" />
+                  <div className="w-3 h-3 rounded-full bg-foreground/20" />
+                  <div className="w-3 h-3 rounded-full bg-foreground/20" />
                 </div>
-                <span className="text-xs font-mono text-background/40">workflow.ts</span>
+                <span className="text-xs font-mono text-foreground/40">study-plan.txt</span>
               </div>
 
               {/* Code content */}
               <div className="p-8 font-mono text-sm min-h-[280px]">
-                <pre className="text-background/70">
+                <pre className="text-foreground/80">
                   {steps[activeStep].code.split('\n').map((line, lineIndex) => (
                     <div 
                       key={`${activeStep}-${lineIndex}`} 
@@ -165,7 +161,7 @@ export function HowItWorksSection() {
                         animationDelay: `${lineIndex * 80}ms`,
                       }}
                     >
-                      <span className="text-background/20 select-none w-8 inline-block">{lineIndex + 1}</span>
+                      <span className="text-foreground/20 select-none w-8 inline-block">{lineIndex + 1}</span>
                       <span className="inline-flex">
                         {line.split('').map((char, charIndex) => (
                           <span
@@ -185,9 +181,9 @@ export function HowItWorksSection() {
               </div>
 
               {/* Status */}
-              <div className="px-6 py-4 border-t border-background/10 flex items-center gap-3">
+              <div className="px-6 py-4 border-t border-foreground/10 flex items-center gap-3">
                 <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
-                <span className="text-xs font-mono text-background/40">Ready</span>
+                <span className="text-xs font-mono text-foreground/40">Ready</span>
               </div>
             </div>
           </div>

@@ -46,28 +46,28 @@ function AnimatedCounter({ end, suffix = "", prefix = "" }: { end: number; suffi
 
 const metrics = [
   { 
-    value: 2847392, 
+    value: 284739, 
     suffix: "", 
     prefix: "",
-    label: "API requests today",
+    label: "questions answered today",
   },
   { 
-    value: 99, 
-    suffix: ".99%", 
+    value: 92, 
+    suffix: "%", 
     prefix: "",
-    label: "Uptime this quarter",
+    label: "students who finish a plan",
   },
   { 
-    value: 23, 
-    suffix: "ms", 
+    value: 18, 
+    suffix: " min", 
     prefix: "",
-    label: "Average response time",
+    label: "average focus session",
   },
   { 
-    value: 184, 
+    value: 64, 
     suffix: "", 
     prefix: "",
-    label: "Countries served",
+    label: "countries learning daily",
   },
 ];
 
@@ -94,29 +94,29 @@ export function MetricsSection() {
   }, []);
 
   return (
-    <section id="studio" ref={sectionRef} className="relative py-24 lg:py-32 border-y border-foreground/10">
+    <section id="metrics" ref={sectionRef} className="relative py-24 lg:py-32 border-y border-foreground/10">
       <div className="max-w-[1400px] mx-auto px-6 lg:px-12">
         {/* Header */}
         <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-8 mb-16 lg:mb-24">
           <div>
             <span className="inline-flex items-center gap-3 text-sm font-mono text-muted-foreground mb-6">
               <span className="w-8 h-px bg-foreground/30" />
-              Live metrics
+              Learning stats
             </span>
             <h2
               className={`text-4xl lg:text-6xl font-display tracking-tight transition-all duration-700 ${
                 isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
               }`}
             >
-              Performance you
+              Progress you
               <br />
-              can measure.
+              can feel.
             </h2>
           </div>
           <div className="flex items-center gap-4 font-mono text-sm text-muted-foreground">
             <span className="flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-              Live
+              Live now
             </span>
             <span className="text-foreground/30">|</span>
             <span>{time.toLocaleTimeString()}</span>
