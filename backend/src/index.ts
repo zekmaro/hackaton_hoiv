@@ -45,13 +45,11 @@ app.use((err: Error, _req: express.Request, res: express.Response, _next: expres
   res.status(500).json({ error: err.message, code: 'AGENT_ERROR', status: 500 })
 })
 
+// Start server first, then init DB (so Railway health check passes regardless)
+app.listen(PORT, () => {
+  console.log(`Backend running on http://localhost:${PORT}`)
+})
+
 initDB()
-  .then(() => {
-    app.listen(PORT, () => {
-      console.log(`Backend running on http://localhost:${PORT}`)
-    })
-  })
-  .catch(err => {
-    console.error('Failed to init DB:', err)
-    process.exit(1)
-  })
+  .then(() => console.log('DB ready'))
+  .catch(err => console.error('DB init failed (non-fatal):', err))
