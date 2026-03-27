@@ -94,24 +94,43 @@ Two-step conversational flow — no forms:
 
 ---
 
+## Dashboard Mental Model
+
+Dashboard = grid of tutor cards, one per subject.
+Onboarding creates the first tutor card. "+ Add subject" creates more.
+
+```
+Dashboard
+├── Calculus 1 card  (exam: Apr 17, progress: 2/8 nodes)
+├── Physics card     (added later)
+└── + Add new subject  → goes to /onboarding again
+```
+
+Onboarding page checks localStorage:
+- No studentId → new student → calls /api/onboard/complete
+- studentId exists → adding subject → calls /api/tutor/add (same chat flow)
+
+---
+
 ## What Frontend Needs to Build Next (Person B)
 
 **Priority 1 — Onboarding page (`/onboarding`)**
-- Name input → then chat interface (NOT a form)
+- Name input (first time only) → chat interface (NOT a form)
 - Each user message → POST `/api/onboard/chat` with full message history
-- Show AI reply, keep conversation going
-- When `done: true` → show syllabus textarea (optional)
-- Submit → POST `/api/onboard/complete` → save studentId → redirect to `/dashboard`
+- When `done: true` → show optional syllabus textarea
+- If new student → POST `/api/onboard/complete` → save studentId → go to `/dashboard`
+- If existing student → POST `/api/tutor/add` → go back to `/dashboard`
 
 **Priority 2 — Dashboard (`/dashboard`)**
-- GET `/api/study-path/:studentId` (not built yet — Person A building this)
-- Show roadmap nodes, XP, streak, today's focus
-- Each subject node → navigates to `/tutor/:subject`
+- GET `/api/dashboard/:studentId` → returns all tutor cards
+- Grid of subject cards (subject name, exam date, progress, streak)
+- Each card → navigates to `/tutor/:subject`
+- "+ Add new subject" button → navigates to `/onboarding`
 
 **Priority 3 — Tutor page (`/tutor/:subject`)**
 - Chat interface + voice mic button
 - POST `/api/tutor/message` (Person A building this next)
-- Agent activity sidebar (shows what agents are doing)
+- Agent activity sidebar
 
 ---
 

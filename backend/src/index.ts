@@ -4,6 +4,7 @@ import cors from 'cors'
 import { initDB } from './memory/client'
 import { onboardRouter } from './api/routes/onboard'
 import { tutorRouter } from './api/routes/tutor'
+import { addSubjectRouter } from './api/routes/addSubject'
 import { studyPathRouter } from './api/routes/studyPath'
 import { assessmentRouter } from './api/routes/assessment'
 import { memoryRouter } from './api/routes/memory'
@@ -34,6 +35,7 @@ app.get('/health', (_req, res) => {
 // Routes
 app.use('/api/onboard', onboardRouter)
 app.use('/api/tutor', tutorRouter)
+app.use('/api/tutor', addSubjectRouter)
 app.use('/api/study-path', studyPathRouter)
 app.use('/api/assessment', assessmentRouter)
 app.use('/api/memory', memoryRouter)
