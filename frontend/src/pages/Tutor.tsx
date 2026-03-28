@@ -315,13 +315,15 @@ export default function Tutor() {
       }
 
     } catch (err) {
-      // Commit whatever text arrived before the error — never discard it
+      // Commit whatever text arrived before the error/abort — never discard it
       if (fullText.trim()) {
         const { clean } = parsePhaseMarker(fullText)
         setMessages((prev) => [...prev, { role: "assistant", content: clean }])
       }
       setStreamingContent(null)
-      setError(err instanceof Error ? err.message : "Something went wrong.")
+      // AbortError = user hit stop — not an error worth showing
+      const isAbort = err instanceof Error && (err.name === "AbortError" || err.message.includes("aborted") || err.message.includes("abort"))
+      if (!isAbort) setError(err instanceof Error ? err.message : "Something went wrong.")
     } finally {
       setLoading(false)
     }
