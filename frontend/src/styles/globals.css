@@ -543,11 +543,6 @@
     color: #ffffff;
   }
 
-  .lesson-option-text {
-    font-size: 15px;
-    color: #1a1500;
-  }
-
   .lesson-option.wrong {
     border-color: #ef4444;
     background: rgba(239, 68, 68, 0.08);
@@ -568,24 +563,6 @@
     border-radius: 10px;
     padding: 14px 18px;
     margin-bottom: 20px;
-  }
-
-  .markdown-content p {
-    margin: 0 0 0.75rem 0;
-  }
-
-  .markdown-content p:last-child {
-    margin-bottom: 0;
-  }
-
-  .markdown-content ul,
-  .markdown-content ol {
-    margin: 0 0 0.75rem 1.25rem;
-    padding: 0;
-  }
-
-  .markdown-content strong {
-    font-weight: 700;
   }
 
   .lesson-results {

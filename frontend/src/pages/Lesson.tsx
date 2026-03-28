@@ -1,9 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { useNavigate, useParams } from "react-router-dom"
 import type { RoadmapNode } from "@shared/types"
-import ReactMarkdown from "react-markdown"
-import remarkMath from "remark-math"
-import rehypeKatex from "rehype-katex"
 
 type LessonPhase = "intro" | "keypoints" | "quiz" | "summary"
 
@@ -160,16 +157,6 @@ export default function Lesson() {
     )
   }
 
-  const Markdown = ({ content, className }: { content: string; className?: string }) => (
-    <ReactMarkdown
-      className={className}
-      remarkPlugins={[remarkMath]}
-      rehypePlugins={[rehypeKatex]}
-    >
-      {content}
-    </ReactMarkdown>
-  )
-
   return (
     <main className="lesson-page text-foreground font-sans">
       <header className="lesson-header">
@@ -205,7 +192,7 @@ export default function Lesson() {
             </p>
             <h1 className="lesson-heading">{node.title ?? node.topic}</h1>
             <div className="lesson-card">
-              <Markdown content={lesson.intro} className="lesson-body markdown-content" />
+              <p className="lesson-body">{lesson.intro}</p>
             </div>
             <button
               type="button"
@@ -223,21 +210,18 @@ export default function Lesson() {
             <p className="lesson-section-subtitle">3 things to understand before the quiz</p>
             <div className="lesson-keypoints">
               {lesson.keyPoints.map((point, index) => (
-                  <div key={point.title + index} className="lesson-card">
-                    <div className="lesson-badge">{index + 1}</div>
-                    <h3 className="lesson-card-title">{point.title}</h3>
-                    <Markdown content={point.explanation} className="lesson-body markdown-content" />
-                    {point.example && (
-                      <div className="lesson-example">
-                        <p className="lesson-example-label">Example</p>
-                        <Markdown
-                          content={point.example}
-                          className="lesson-example-text markdown-content"
-                        />
-                      </div>
-                    )}
-                  </div>
-                ))}
+                <div key={point.title + index} className="lesson-card">
+                  <div className="lesson-badge">{index + 1}</div>
+                  <h3 className="lesson-card-title">{point.title}</h3>
+                  <p className="lesson-body">{point.explanation}</p>
+                  {point.example && (
+                    <div className="lesson-example">
+                      <p className="lesson-example-label">Example</p>
+                      <p className="lesson-example-text">{point.example}</p>
+                    </div>
+                  )}
+                </div>
+              ))}
             </div>
             <button
               type="button"
@@ -256,10 +240,7 @@ export default function Lesson() {
               <span className="lesson-quiz-score">{score} correct</span>
             </div>
             <div className="lesson-card">
-              <Markdown
-                content={lesson.quiz[currentQ].question}
-                className="lesson-quiz-question markdown-content"
-              />
+              <h3 className="lesson-quiz-question">{lesson.quiz[currentQ].question}</h3>
             </div>
             <div className="lesson-options">
               {lesson.quiz[currentQ].options.map((option, index) => {
@@ -283,16 +264,15 @@ export default function Lesson() {
                     <span className="lesson-option-letter">
                       {String.fromCharCode(65 + index)}
                     </span>
-                    <Markdown content={option} className="lesson-option-text markdown-content" />
+                    <span>{option}</span>
                   </button>
                 )
               })}
             </div>
             {answered && (
-              <Markdown
-                content={lesson.quiz[currentQ].explanation}
-                className="lesson-explanation markdown-content"
-              />
+              <div className="lesson-explanation">
+                {lesson.quiz[currentQ].explanation}
+              </div>
             )}
             {answered && (
               <button
@@ -335,7 +315,7 @@ export default function Lesson() {
             <div className="lesson-xp-earned">+{xpGained} XP earned!</div>
             <div className="lesson-card">
               <p className="lesson-tag">What you learned</p>
-              <Markdown content={lesson.summary} className="lesson-body markdown-content" />
+              <p className="lesson-body">{lesson.summary}</p>
             </div>
             <button
               type="button"
