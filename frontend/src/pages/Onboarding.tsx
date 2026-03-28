@@ -13,6 +13,7 @@ type FormData = {
   level: Level | null
   goal: Goal | null
   examDate: string | null   // ISO date or null
+  focusTopic: string        // what they want to work on (used when no exam)
   struggles: string
   hours: Hours | null
   syllabus: string
@@ -24,13 +25,14 @@ type StepId =
   | "level"
   | "goal"
   | "exam"
+  | "focus"
   | "struggles"
   | "hours"
   | "syllabus"
   | "generating"
 
 const STEPS: StepId[] = [
-  "welcome", "subject", "level", "goal", "exam", "struggles", "hours", "syllabus", "generating",
+  "welcome", "subject", "level", "goal", "exam", "focus", "struggles", "hours", "syllabus", "generating",
 ]
 
 // ─── Speech helpers ───────────────────────────────────────────────────────────
@@ -126,6 +128,7 @@ export default function Onboarding() {
     level: null,
     goal: null,
     examDate: null,
+    focusTopic: "",
     struggles: "",
     hours: null,
     syllabus: "",
@@ -140,7 +143,8 @@ export default function Onboarding() {
   const hasTTSRef = useRef(false)
 
   const step = STEPS[stepIndex]
-  const visibleSteps = STEPS.filter((s) => s !== "generating") as Exclude<StepId, "generating">[]
+  // "focus" step only shows when user has no exam — exclude it from dots when an exam date is set
+  const visibleSteps = STEPS.filter((s) => s !== "generating" && (s !== "focus" || !form.examDate)) as Exclude<StepId, "generating">[]
   const dotIndex = visibleSteps.indexOf(step as Exclude<StepId, "generating">)
 
   const resolveUrl = useCallback(
@@ -189,6 +193,7 @@ export default function Onboarding() {
         case "level": return `What level are you at?`
         case "goal": return `What's your main goal?`
         case "exam": return `Do you have an exam coming up?`
+        case "focus": return `Great! What specific topic or concept would you most like to start with?`
         case "struggles": return `What do you find hardest about this subject?`
         case "hours": return `How many hours a day can you realistically study?`
         case "syllabus": return `Optionally, paste your syllabus so I can tailor your roadmap even better.`
@@ -288,7 +293,7 @@ export default function Onboarding() {
         {
           name: form.subject,
           level: form.level === "high_school" ? "high school" : form.level === "self_learning" ? "self-learning" : "university",
-          currentStruggles: form.struggles || "general understanding",
+          currentStruggles: [form.struggles, form.focusTopic ? `wants to start with: ${form.focusTopic}` : ""].filter(Boolean).join("; ") || "general understanding",
         },
       ],
       goals:
@@ -355,6 +360,7 @@ export default function Onboarding() {
       case "level": return form.level !== null
       case "goal": return form.goal !== null
       case "exam": return true // optional
+      case "focus": return true // optional
       case "struggles": return true // optional
       case "hours": return form.hours !== null
       case "syllabus": return true // optional
@@ -530,10 +536,51 @@ export default function Onboarding() {
               />
               <button
                 type="button"
-                onClick={() => { update("examDate", null); next() }}
+                onClick={() => { update("examDate", null); goTo(STEPS.indexOf("focus"), "forward") }}
                 className="w-full rounded-2xl border-2 border-dashed border-[#E6D7C5] px-5 py-4 text-[15px] text-muted-foreground hover:border-[#FF8C00] hover:text-[#FF8C00] transition-colors text-center font-medium"
               >
                 No exam — ongoing learning
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ── Focus topic (no exam path) ── */}
+        {step === "focus" && (
+          <div className="flex flex-col gap-6">
+            <div>
+              <p className="text-[13px] text-[#FF8C00] font-semibold uppercase tracking-widest mb-2">What do you want to learn?</p>
+              <h1 className="text-[28px] font-bold leading-tight mb-2">What should we start with?</h1>
+              <p className="text-muted-foreground text-[15px]">
+                No exam pressure — so let's start with what interests you most. Be as specific as you like.
+              </p>
+            </div>
+            <div className="relative">
+              <textarea
+                autoFocus
+                value={form.focusTopic}
+                onChange={(e) => update("focusTopic", e.target.value)}
+                placeholder={`e.g. "derivatives and how they work", "recursion in Python", "Newton's laws"…`}
+                rows={4}
+                className="w-full rounded-2xl border-2 border-[#E6D7C5] focus:border-[#FF8C00] bg-white px-5 py-4 text-[15px] text-foreground outline-none transition-colors resize-none pr-14"
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  if (listening) { stopListening(); return }
+                  startListening((text) => update("focusTopic", text))
+                }}
+                className={`absolute right-3 top-3 w-10 h-10 rounded-xl flex items-center justify-center transition-all ${
+                  listening
+                    ? "bg-[#FF8C00] text-white"
+                    : "bg-[#F1F5F9] text-slate-500 hover:bg-[#E2E8F0]"
+                }`}
+                title="Speak your answer"
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
+                  <path d="M19 10v2a7 7 0 0 1-14 0v-2H3v2a9 9 0 0 0 8 8.94V23h-3v2h8v-2h-3v-2.06A9 9 0 0 0 21 12v-2h-2z" />
+                </svg>
               </button>
             </div>
           </div>
@@ -653,17 +700,21 @@ export default function Onboarding() {
           <div className="mt-auto pt-8 pb-8">
             <button
               type="button"
-              onClick={step === "syllabus" ? generate : next}
+              onClick={
+                step === "syllabus" ? generate
+                : step === "exam" && form.examDate ? () => goTo(STEPS.indexOf("struggles"), "forward")
+                : next
+              }
               disabled={!canContinue()}
               className="w-full rounded-2xl py-4 text-[16px] font-bold text-white transition-all active:scale-[0.98] disabled:opacity-40"
               style={{ background: "#FF8C00", boxShadow: "0 4px 20px rgba(255,140,0,0.3)" }}
             >
               {step === "syllabus" ? "Build my roadmap →" : step === "welcome" ? "Let's go →" : "Continue →"}
             </button>
-            {(step === "exam" || step === "struggles") && (
+            {(step === "exam" || step === "struggles" || step === "focus") && (
               <button
                 type="button"
-                onClick={next}
+                onClick={step === "exam" ? () => goTo(STEPS.indexOf("focus"), "forward") : next}
                 className="w-full mt-3 py-3 text-[14px] text-muted-foreground hover:text-foreground transition-colors"
               >
                 Skip for now

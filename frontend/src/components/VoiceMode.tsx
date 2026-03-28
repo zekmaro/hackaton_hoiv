@@ -20,6 +20,11 @@ type BlockType =
   | "phase-divider"
   | "adaptation"
 
+type TtsQueueItem = {
+  displayText: string          // shown on board when this sentence plays
+  audioPromise: Promise<HTMLAudioElement>
+}
+
 type BoardBlock = {
   id: string
   type: BlockType
@@ -389,7 +394,8 @@ export default function VoiceMode({
   const [orbState, setOrbState] = useState<OrbState>("idle")
   const [statusText, setStatusText] = useState("Starting…")
   const [boardBlocks, setBoardBlocks] = useState<BoardBlock[]>([])
-  const [streamingContent, setStreamingContent] = useState("")
+  // revealedText = only the text that has already been spoken aloud (synced to TTS)
+  const [revealedText, setRevealedText] = useState("")
   const [streamingBlockType, setStreamingBlockType] = useState<BlockType>("lecture")
   const [streamingDifficulty, setStreamingDifficulty] = useState<"practice" | "challenge" | undefined>(undefined)
   const [isStreaming, setIsStreaming] = useState(false)
@@ -403,7 +409,7 @@ export default function VoiceMode({
   const boardRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const messagesRef = useRef<OnboardChatMessage[]>(initialMessages)
-  const ttsQueueRef = useRef<Promise<HTMLAudioElement>[]>([])
+  const ttsQueueRef = useRef<TtsQueueItem[]>([])
   const isPlayingAudioRef = useRef(false)
   const streamDoneRef = useRef(false)
   const sentenceBufferRef = useRef("")
@@ -415,6 +421,9 @@ export default function VoiceMode({
   const challengeQuestionAskedRef = useRef(false)
   const totalXpRef = useRef(0)
   const sendMessageRef = useRef<(text: string) => void>(() => undefined)
+  const revealedTextRef = useRef("")
+  const streamingBlockTypeRef = useRef<BlockType>("lecture")
+  const streamingDifficultyRef = useRef<"practice" | "challenge" | undefined>(undefined)
 
   const resolveUrl = useCallback(
     (path: string) => apiBase.endsWith("/api") ? `${apiBase}${path}` : `${apiBase}/api${path}`,
@@ -435,7 +444,7 @@ export default function VoiceMode({
     if (!el) return
     const distFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight
     if (distFromBottom < 120) el.scrollTop = el.scrollHeight
-  }, [boardBlocks, streamingContent])
+  }, [boardBlocks, revealedText])
 
   useEffect(() => {
     if (showInput) inputRef.current?.focus()
@@ -489,17 +498,33 @@ export default function VoiceMode({
     }
     isPlayingAudioRef.current = true
     setOrbState("speaking"); setStatusText("Speaking…")
-    const audioPromise = ttsQueueRef.current.shift()!
-    audioPromise
+
+    const item = ttsQueueRef.current.shift()!
+
+    // Reveal this sentence on the board exactly when audio starts — text/voice sync
+    revealedTextRef.current += (revealedTextRef.current ? " " : "") + item.displayText
+    setRevealedText(revealedTextRef.current)
+
+    item.audioPromise
       .then(audio => { audio.onended = () => playNextInQueue(); audio.onerror = () => playNextInQueue(); return audio.play() })
       .catch(() => playNextInQueue())
   }, [startListening])
 
-  const enqueueSentence = useCallback((text: string) => {
-    if (mutedRef.current) return
-    const cleaned = cleanForTTS(text)
-    if (cleaned.trim().length < 4) return
-    ttsQueueRef.current.push(fetchTTSAudio(cleaned))
+  const enqueueSentence = useCallback((rawText: string) => {
+    // Strip phase markers from display text, keep markdown
+    const displayText = rawText.replace(/\[PHASE:[a-z_]+\]/g, "").trim()
+    if (!displayText) return
+
+    if (mutedRef.current) {
+      // No TTS but reveal text immediately so muted users still see content
+      revealedTextRef.current += (revealedTextRef.current ? " " : "") + displayText
+      setRevealedText(revealedTextRef.current)
+      return
+    }
+
+    const ttsText = cleanForTTS(displayText)
+    if (ttsText.trim().length < 4) return
+    ttsQueueRef.current.push({ displayText, audioPromise: fetchTTSAudio(ttsText) })
     if (!isPlayingAudioRef.current) playNextInQueue()
   }, [fetchTTSAudio, playNextInQueue])
 
@@ -519,7 +544,10 @@ export default function VoiceMode({
     messagesRef.current = [...messagesRef.current, { role: "user", content: trimmed }]
 
     setOrbState("thinking"); setStatusText("Thinking…")
-    setIsStreaming(true); setStreamingContent("")
+    setIsStreaming(true)
+    // Reset revealed text — new message starts blank, reveals word-by-word as TTS plays
+    revealedTextRef.current = ""
+    setRevealedText("")
     streamDoneRef.current = false; sentenceBufferRef.current = ""
     ttsQueueRef.current = []; isPlayingAudioRef.current = false
 
@@ -527,10 +555,13 @@ export default function VoiceMode({
     const currentPhase = currentLessonPhaseRef.current
     if (currentPhase === "practice") {
       setStreamingBlockType("problem"); setStreamingDifficulty("practice")
+      streamingBlockTypeRef.current = "problem"; streamingDifficultyRef.current = "practice"
     } else if (currentPhase === "challenge" && !challengeQuestionAskedRef.current) {
       setStreamingBlockType("problem"); setStreamingDifficulty("challenge")
+      streamingBlockTypeRef.current = "problem"; streamingDifficultyRef.current = "challenge"
     } else {
       setStreamingBlockType("lecture"); setStreamingDifficulty(undefined)
+      streamingBlockTypeRef.current = "lecture"; streamingDifficultyRef.current = undefined
     }
 
     const abort = new AbortController()
@@ -577,8 +608,7 @@ export default function VoiceMode({
           try { event = JSON.parse(line.slice(6)) } catch { continue }
           if (event.type === "chunk") {
             fullText += event.text as string
-            const clean = parsePhaseMarker(fullText).clean
-            setStreamingContent(clean)
+            // Don't set streamingContent here — text reveals sentence-by-sentence via TTS
             setOrbState("speaking"); setStatusText("Speaking…")
             sentenceBufferRef.current += event.text as string
             const { sentences, remainder } = extractSentences(sentenceBufferRef.current)
@@ -663,7 +693,7 @@ export default function VoiceMode({
         }])
       }
 
-      setStreamingContent(""); setIsStreaming(false)
+      setIsStreaming(false)
       streamDoneRef.current = true
 
       if (!isPlayingAudioRef.current && ttsQueueRef.current.length === 0) {
@@ -675,9 +705,9 @@ export default function VoiceMode({
         const clean = parsePhaseMarker(fullText).clean
         setBoardBlocks(prev => [...prev, { id: `ai-${Date.now()}`, type: "lecture", content: clean }])
       }
-      setStreamingContent(""); setIsStreaming(false)
+      setIsStreaming(false)
       if (!isAbort) { setError("Connection lost. Tap mic to try again."); setOrbState("idle"); setStatusText("") }
-      else { setOrbState("idle"); setStatusText("Stopped") }
+      else { setOrbState("idle"); setStatusText("Stopped — tap mic to continue") }
     }
   }, [studentId, realSubjectName, mode, topic, nodeId, resolveUrl, enqueueSentence, startListening])
 
@@ -696,20 +726,51 @@ export default function VoiceMode({
 
     const msg = mode === "lesson" && topic
       ? `Start lesson on: ${topic}`
-      : `Hello! I'm ready to learn about ${realSubjectName}.`
+      : `__session_start__: Greet the student warmly, then ask them what specific topic or concept they want to work on today for ${realSubjectName}. Wait for their answer before teaching anything.`
     void sendMessage(msg)
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { mutedRef.current = muted }, [muted])
   useEffect(() => () => { abortControllerRef.current?.abort(); recognitionRef.current?.stop() }, [])
 
-  // ── Stop ─────────────────────────────────────────────────────────────────────
+  // ── Interrupt / Stop ──────────────────────────────────────────────────────────
+
+  // Interrupt during speaking → commit partial content + immediately start listening
+  const handleInterrupt = useCallback(() => {
+    // Stop TTS queue immediately
+    ttsQueueRef.current = []
+    isPlayingAudioRef.current = false
+    streamDoneRef.current = false
+
+    // Commit whatever was revealed so far as a proper board block
+    const partial = revealedTextRef.current.trim()
+    if (partial) {
+      setBoardBlocks(prev => [...prev, {
+        id: `ai-interrupted-${Date.now()}`,
+        type: streamingBlockTypeRef.current,
+        content: partial,
+        difficulty: streamingDifficultyRef.current,
+      }])
+      revealedTextRef.current = ""
+      setRevealedText("")
+    }
+
+    // Abort the stream if still generating
+    abortControllerRef.current?.abort()
+    setIsStreaming(false)
+
+    // Jump straight to listening
+    setOrbState("listening")
+    setStatusText("Listening…")
+    startListening()
+  }, [startListening])
 
   const handleStop = useCallback(() => {
     abortControllerRef.current?.abort()
     ttsQueueRef.current = []; isPlayingAudioRef.current = false; streamDoneRef.current = false
     recognitionRef.current?.stop()
-    setIsStreaming(false); setStreamingContent("")
+    setIsStreaming(false)
+    revealedTextRef.current = ""; setRevealedText("")
     setOrbState("idle"); setStatusText("Stopped — tap mic to continue")
   }, [])
 
@@ -783,16 +844,16 @@ export default function VoiceMode({
           {/* Committed blocks */}
           {boardBlocks.map(block => <RenderBlock key={block.id} block={block} />)}
 
-          {/* Streaming block */}
-          {isStreaming && streamingContent && (
+          {/* Streaming block — only shows text that has already been spoken */}
+          {isStreaming && revealedText && (
             <RenderBlock
-              block={{ id: "streaming", type: streamingBlockType, content: streamingContent, difficulty: streamingDifficulty }}
+              block={{ id: "streaming", type: streamingBlockType, content: revealedText, difficulty: streamingDifficulty }}
               isStreaming
             />
           )}
 
-          {/* Thinking dots */}
-          {isStreaming && !streamingContent && (
+          {/* Thinking / waiting for first word */}
+          {isStreaming && !revealedText && (
             <div className="mb-8">
               <div className="flex items-center gap-2 mb-3">
                 <div className="w-1.5 h-1.5 rounded-full bg-amber-400/60" />
@@ -855,7 +916,7 @@ export default function VoiceMode({
             <span className="text-slate-400 text-sm min-w-0 truncate max-w-[160px]">{statusText}</span>
           </div>
           <div className="flex items-center gap-3">
-            {/* Keyboard */}
+            {/* Keyboard toggle */}
             <button type="button" onClick={() => setShowInput(v => !v)}
               className={`rounded-full w-11 h-11 flex items-center justify-center border transition-all ${showInput ? "bg-amber-400/15 border-amber-400/40 text-amber-400" : "bg-white/5 border-white/10 text-slate-400 hover:bg-white/10"}`}>
               <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
@@ -863,26 +924,59 @@ export default function VoiceMode({
                 <path d="M6 8h.01M10 8h.01M14 8h.01M18 8h.01M8 12h.01M12 12h.01M16 12h.01M7 16h10" />
               </svg>
             </button>
-            {/* Stop / Mic */}
-            {isBusy ? (
+
+            {/* Small abort button when thinking (generating, no audio yet) */}
+            {orbState === "thinking" && (
               <button type="button" onClick={handleStop}
-                className="rounded-full w-14 h-14 flex items-center justify-center active:scale-95 transition-all"
-                style={{ background: "rgba(255,255,255,0.92)", boxShadow: "0 0 20px rgba(255,255,255,0.15)" }}>
-                <span className="block rounded-sm" style={{ width: 18, height: 18, background: "#0c1220" }} />
+                className="rounded-full w-11 h-11 flex items-center justify-center border bg-white/5 border-white/10 text-slate-400 hover:bg-white/10 transition-all"
+                title="Stop">
+                <span className="block rounded-sm bg-slate-400" style={{ width: 14, height: 14 }} />
               </button>
-            ) : (
-              <button type="button" onClick={() => { setError(null); startListening() }}
-                className="rounded-full w-14 h-14 flex items-center justify-center active:scale-95 transition-all"
-                style={{
-                  background: orbState === "listening" ? "rgba(74,222,128,0.85)" : "rgba(251,191,36,0.85)",
-                  boxShadow: orbState === "listening" ? "0 0 24px rgba(74,222,128,0.4)" : "0 0 24px rgba(251,191,36,0.35)",
-                }}>
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="#0c1220">
+            )}
+
+            {/* Mic — always the primary action.
+                During speaking  → interrupt (stops TTS, starts listening immediately)
+                During listening → already active (pulsing green)
+                Idle             → start listening */}
+            <button
+              type="button"
+              onClick={() => {
+                setError(null)
+                if (orbState === "speaking") {
+                  handleInterrupt()
+                } else {
+                  startListening()
+                }
+              }}
+              className="rounded-full w-14 h-14 flex flex-col items-center justify-center gap-0.5 active:scale-95 transition-all"
+              style={{
+                background:
+                  orbState === "speaking"
+                    ? "rgba(239,68,68,0.8)"      // red = interrupt
+                    : orbState === "listening"
+                    ? "rgba(74,222,128,0.85)"     // green = listening
+                    : "rgba(251,191,36,0.85)",    // amber = idle / tap to speak
+                boxShadow:
+                  orbState === "speaking"
+                    ? "0 0 24px rgba(239,68,68,0.35)"
+                    : orbState === "listening"
+                    ? "0 0 24px rgba(74,222,128,0.4)"
+                    : "0 0 24px rgba(251,191,36,0.35)",
+              }}
+              title={orbState === "speaking" ? "Tap to interrupt" : "Speak"}
+            >
+              {orbState === "speaking" ? (
+                // Hand-raise icon = interrupt
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="#0c1220">
+                  <path d="M18 11V7a2 2 0 0 0-4 0v4M14 7V4a2 2 0 0 0-4 0v7M10 9V6a2 2 0 0 0-4 0v8l-2-2a2 2 0 0 0-2.83 2.83L5 18a6 6 0 0 0 6 6h2a6 6 0 0 0 6-6v-7a2 2 0 0 0-4 0z" stroke="#0c1220" strokeWidth="1.5" fill="none" />
+                </svg>
+              ) : (
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="#0c1220">
                   <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
                   <path d="M19 10v2a7 7 0 0 1-14 0v-2H3v2a9 9 0 0 0 8 8.94V23h-3v2h8v-2h-3v-2.06A9 9 0 0 0 21 12v-2h-2z" />
                 </svg>
-              </button>
-            )}
+              )}
+            </button>
           </div>
         </div>
       </div>
