@@ -257,8 +257,19 @@ export default function VoiceMode({
       const text = e.results[0]?.[0]?.transcript ?? ""
       if (text.trim()) { recognitionRef.current = null; sendMessageRef.current(text.trim()) }
     }
-    r.onend = () => {}
-    r.onerror = () => { setStatusText("Tap mic to speak") }
+    r.onend = () => {
+      // If recognition ended without a result (no speech / timeout), reset to idle
+      if (recognitionRef.current === r) {
+        recognitionRef.current = null
+        setOrbState("idle")
+        setStatusText("Tap mic to speak")
+      }
+    }
+    r.onerror = () => {
+      recognitionRef.current = null
+      setOrbState("idle")
+      setStatusText("Tap mic to speak")
+    }
     try { r.start(); setOrbState("listening"); setStatusText("Listening…") }
     catch { setOrbState("listening"); setStatusText("Tap mic to speak") }
   }, [])
@@ -644,6 +655,13 @@ export default function VoiceMode({
               setError(null)
               if (orbState === "speaking") handleInterrupt()
               else if (orbState === "thinking") handleStop()
+              else if (orbState === "listening") {
+                // Tap again to cancel mic
+                recognitionRef.current?.stop()
+                recognitionRef.current = null
+                setOrbState("idle")
+                setStatusText("Tap mic to speak")
+              }
               else startListening()
             }}
             className="rounded-full w-20 h-20 flex items-center justify-center active:scale-95 transition-all"
