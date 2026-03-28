@@ -140,6 +140,7 @@ export default function Tutor() {
   const [input, setInput] = useState("")
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [attachments, setAttachments] = useState<File[]>([])
   const [totalXp, setTotalXp] = useState(0)
   const [lastXp, setLastXp] = useState<number | null>(null)
   const [currentPhase, setCurrentPhase] = useState<LessonPhase>("example")
@@ -151,6 +152,7 @@ export default function Tutor() {
   const recognitionRef = useRef<SpeechRecognitionInstance | null>(null)
   const autoSentRef = useRef(false)
   const messagesEndRef = useRef<HTMLDivElement | null>(null)
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
   const messagesRef = useRef<OnboardChatMessage[]>([])
   const chatContainerRef = useRef<HTMLDivElement | null>(null)
   // Maps each phase to the message index where it starts (for scroll-to navigation)
@@ -194,6 +196,11 @@ export default function Tutor() {
     if (!apiBase) { setError("Missing VITE_API_URL."); return }
     const trimmed = text.trim()
     if (!trimmed) return
+    const attachmentNote =
+      attachments.length > 0
+        ? `\n\n[Attached files: ${attachments.map((file) => file.name).join(", ")}]`
+        : ""
+    const messageWithAttachments = `${trimmed}${attachmentNote}`
 
     const currentMessages = messagesRef.current
     const userMsgIndex = currentMessages.length
@@ -203,18 +210,19 @@ export default function Tutor() {
       phaseStartIndex.current.example = userMsgIndex + 1
     }
 
-    setMessages([...currentMessages, { role: "user", content: trimmed }])
+    setMessages([...currentMessages, { role: "user", content: messageWithAttachments }])
     setInput("")
+    setAttachments([])
     setLoading(true)
     setError(null)
     setLastXp(null)
 
     try {
-      const payload: TutorMessageRequest = {
-        studentId,
-        subject: realSubjectName,
-        message: trimmed,
-        voiceMode: false,
+        const payload: TutorMessageRequest = {
+          studentId,
+          subject: realSubjectName,
+          message: messageWithAttachments,
+          voiceMode: false,
         mode,
         topic: topic || undefined,
         nodeId: nodeId || undefined,
@@ -292,7 +300,7 @@ export default function Tutor() {
     } finally {
       setLoading(false)
     }
-  }, [apiBase, studentId, subject, resolveApiUrl, realSubjectName, mode, topic, nodeId])
+  }, [apiBase, studentId, subject, resolveApiUrl, realSubjectName, mode, topic, nodeId, attachments])
 
   // ── Auto-send opening message ─────────────────────────────────────────────
 
@@ -326,6 +334,49 @@ export default function Tutor() {
 
     if (listening) { recognitionRef.current.stop(); setListening(false) }
     else { setError(null); recognitionRef.current.start(); setListening(true) }
+  }
+
+  const onSelectFiles = (event: { target: HTMLInputElement }) => {
+    const fileList = event.target.files
+    if (!fileList || fileList.length === 0) return
+    setAttachments((prev) => [...prev, ...Array.from(fileList)])
+    event.target.value = ""
+  }
+
+  const removeAttachment = (index: number) => {
+    setAttachments((prev) => prev.filter((_, fileIndex) => fileIndex !== index))
+  }
+
+  const captureScreenshot = async () => {
+    if (!navigator.mediaDevices?.getDisplayMedia) {
+      setError("Screenshot capture is not supported in this browser.")
+      return
+    }
+    try {
+      setError(null)
+      const stream = await navigator.mediaDevices.getDisplayMedia({ video: true })
+      const videoTrack = stream.getVideoTracks()[0]
+      const video = document.createElement("video")
+      video.srcObject = stream
+      video.muted = true
+      await video.play()
+
+      const canvas = document.createElement("canvas")
+      canvas.width = video.videoWidth
+      canvas.height = video.videoHeight
+      const context = canvas.getContext("2d")
+      if (!context) throw new Error("Could not create screenshot canvas.")
+      context.drawImage(video, 0, 0, canvas.width, canvas.height)
+
+      const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/png"))
+      stream.getTracks().forEach((track) => track.stop())
+      if (!blob) throw new Error("Failed to capture screenshot.")
+
+      const file = new File([blob], `screenshot-${Date.now()}.png`, { type: "image/png" })
+      setAttachments((prev) => [...prev, file])
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to capture screenshot.")
+    }
   }
 
   // ── Render ────────────────────────────────────────────────────────────────────
@@ -466,8 +517,52 @@ export default function Tutor() {
 
             {error && <p className="text-sm text-[#B91C1C]">{error}</p>}
 
+            {attachments.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {attachments.map((file, index) => (
+                  <span
+                    key={`${file.name}-${index}`}
+                    className="inline-flex items-center gap-2 rounded-full border border-[#E6D7C5] bg-white/80 px-3 py-1 text-xs text-foreground"
+                  >
+                    {file.name}
+                    <button
+                      type="button"
+                      onClick={() => removeAttachment(index)}
+                      className="text-muted-foreground hover:text-foreground"
+                      aria-label={`Remove ${file.name}`}
+                    >
+                      x
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+
             {!lessonComplete && (
               <div className="flex items-center gap-2">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  multiple
+                  className="hidden"
+                  onChange={onSelectFiles}
+                />
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isStreaming}
+                  className="rounded-xl border border-[#E6D7C5] bg-white/80 px-3 py-3 text-sm font-semibold text-muted-foreground hover:border-[#FF8C00] hover:text-[#FF8C00] transition-colors disabled:opacity-50"
+                >
+                  Upload
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void captureScreenshot()}
+                  disabled={isStreaming}
+                  className="rounded-xl border border-[#E6D7C5] bg-white/80 px-3 py-3 text-sm font-semibold text-muted-foreground hover:border-[#FF8C00] hover:text-[#FF8C00] transition-colors disabled:opacity-50"
+                >
+                  Screenshot
+                </button>
                 <input
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
