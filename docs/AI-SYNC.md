@@ -28,9 +28,12 @@ See: `docs/frontend-issues.md`
 - / Landing ✅
 - /onboarding ✅
 - /dashboard ✅
-- /dashboard/:subject ✅
-- /lesson/:nodeId ✅ (static version, being replaced)
-- /tutor/:subject ✅
+- /dashboard/:subject ✅ (node clicks must go to tutor, not /lesson)
+- /lesson/:nodeId ❌ DEPRECATED — remove navigation to this
+- /tutor/:subject ⚠️ needs lesson mode + phase UI (see frontend-guide.md)
+
+## Frontend guide (PERSON B — read this)
+See: `docs/frontend-guide.md` — full implementation guide with code snippets
 
 ---
 
