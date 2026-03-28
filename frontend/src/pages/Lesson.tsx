@@ -1,41 +1,63 @@
-import { useMemo } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { useNavigate, useParams } from "react-router-dom"
 import type { RoadmapNode } from "@shared/types"
+import VoiceMode from "../components/VoiceMode"
 
-const PHASES = ["Lecture", "Practice", "Challenge", "Complete"] as const
+type SubjectProfileResponse = {
+  weakTopics?: string[]
+  lastSessionNote?: string | null
+}
 
 export default function Lesson() {
-  const { nodeId, lessonMode } = useParams<{ nodeId: string; lessonMode?: string }>()
+  const { nodeId } = useParams<{ nodeId: string }>()
   const navigate = useNavigate()
+
+  const apiBase = import.meta.env.VITE_API_URL ?? ""
+  const studentId = localStorage.getItem("studentId") ?? ""
+  const studentName = localStorage.getItem("studentName") ?? "Student"
+
   const decodedNodeId = useMemo(() => decodeURIComponent(nodeId ?? ""), [nodeId])
 
   const node = useMemo(() => {
     if (!decodedNodeId) return null
     const studyPath = JSON.parse(localStorage.getItem("studyPath") ?? "[]") as RoadmapNode[]
-    return studyPath.find((item) => item.id === decodedNodeId) ?? null
+    return studyPath.find(item => item.id === decodedNodeId) ?? null
   }, [decodedNodeId])
 
-  const mode = (lessonMode ?? "").toLowerCase()
-  const launchTutor = (selectedMode: "lecture" | "practice") => {
-    if (!node) return
-    navigate(
-      `/tutor/${encodeURIComponent(node.subject)}?mode=lesson&lessonMode=${selectedMode}&topic=${encodeURIComponent(
-        node.topic
-      )}&nodeId=${encodeURIComponent(node.id)}`,
-      { replace: true }
-    )
-  }
+  const [weakTopics, setWeakTopics] = useState<string[]>([])
+  const [lastSessionNote, setLastSessionNote] = useState<string | null>(null)
+  const [contextLoaded, setContextLoaded] = useState(false)
+
+  const resolveUrl = useCallback(
+    (path: string) => apiBase.endsWith("/api") ? `${apiBase}${path}` : `${apiBase}/api${path}`,
+    [apiBase]
+  )
+
+  // Load student context (weak topics, last session note) — non-blocking
+  useEffect(() => {
+    if (!apiBase || !studentId || !node?.subject) { setContextLoaded(true); return }
+    void (async () => {
+      try {
+        const res = await fetch(resolveUrl(`/study-path/${studentId}/${encodeURIComponent(node.subject)}`))
+        if (res.ok) {
+          const data = await res.json() as SubjectProfileResponse
+          if (Array.isArray(data.weakTopics)) setWeakTopics(data.weakTopics.filter(Boolean))
+          if (typeof data.lastSessionNote === "string" && data.lastSessionNote.trim()) {
+            setLastSessionNote(data.lastSessionNote.trim())
+          }
+        }
+      } catch { /* non-critical */ }
+      finally { setContextLoaded(true) }
+    })()
+  }, [apiBase, studentId, node?.subject, resolveUrl])
 
   if (!node) {
     return (
-      <main className="min-h-screen bg-[#F8F7F4] px-6 py-12 text-foreground font-sans">
-        <div className="mx-auto max-w-3xl">
-          <p className="text-sm text-muted-foreground">Lesson not found.</p>
-          <button
-            type="button"
-            onClick={() => navigate("/dashboard")}
-            className="mt-4 rounded-xl bg-[#FF8C00] px-4 py-2 text-sm font-semibold text-white"
-          >
+      <main className="min-h-screen bg-[#0c1220] flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-slate-400 text-sm mb-4">Lesson not found.</p>
+          <button type="button" onClick={() => navigate("/dashboard")}
+            className="rounded-xl bg-[#FF8C00] px-4 py-2 text-sm font-semibold text-white">
             Back to dashboard
           </button>
         </div>
@@ -43,96 +65,32 @@ export default function Lesson() {
     )
   }
 
-  if (mode === "lecture" || mode === "practice") {
-    launchTutor(mode)
-    return <main className="min-h-screen bg-[#F8F7F4]" />
+  // Show brief loading state while fetching context (usually < 300ms)
+  if (!contextLoaded) {
+    return (
+      <main className="min-h-screen bg-[#0c1220] flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-12 h-12 rounded-full"
+            style={{ background: "radial-gradient(circle at 35% 35%, #fbbf24, #92400e)", animation: "orb-think 2s ease-in-out infinite", boxShadow: "0 0 30px rgba(251,191,36,0.3)" }} />
+          <p className="text-slate-500 text-sm">Preparing your lesson…</p>
+        </div>
+      </main>
+    )
   }
 
   return (
-    <main className="min-h-screen bg-[#F8F7F4] text-foreground font-sans">
-      <div className="h-[52px] bg-white border-b border-[#EBEBEB] px-6 md:px-8 flex items-center justify-between">
-        <button
-          type="button"
-          onClick={() => navigate(-1)}
-          className="text-sm text-[#6B7280] hover:text-[#1A1500]"
-        >
-          ← {node.title ?? node.topic} ({node.subject})
-        </button>
-        <div className="hidden md:flex items-center">
-          {PHASES.map((phase, index) => (
-            <div key={phase} className="flex items-center">
-              <span className="h-7 px-3 rounded-full text-xs font-semibold text-[#9CA3AF]">
-                {phase}
-              </span>
-              {index < PHASES.length - 1 && (
-                <span className="w-8 h-px bg-[#D1D5DB] mx-1" />
-              )}
-            </div>
-          ))}
-        </div>
-        <span className="w-6" />
-      </div>
-
-      <section className="min-h-[calc(100vh-52px)] px-6 py-12 md:py-16 flex flex-col items-center justify-center">
-        <p className="text-[11px] font-semibold tracking-[0.08em] uppercase text-[#9CA3AF] mb-2 text-center">
-          {node.subject} — {node.topic}
-        </p>
-        <h1 className="text-[34px] md:text-[38px] leading-[1.12] font-extrabold text-[#111827] text-center max-w-[680px] mb-4">
-          {node.title ?? node.topic}
-        </h1>
-        <p className="text-[15px] leading-7 text-[#6B7280] text-center max-w-[520px] mb-10">
-          Choose how you want to learn this topic first. Start with Lecture for explanation or
-          jump into Practice for exercises.
-        </p>
-
-        <div className="w-full max-w-[720px] grid gap-5 md:grid-cols-2">
-          <button
-            type="button"
-            onClick={() => navigate(`/lesson/${encodeURIComponent(node.id)}/lecture`)}
-            className="text-left rounded-[20px] border-2 border-[#E5E7EB] bg-white p-7 transition-all hover:-translate-y-1 hover:border-[#F59E0B] hover:shadow-[0_12px_32px_rgba(245,158,11,0.14)]"
-          >
-            <div className="w-12 h-12 rounded-xl bg-[#FEF3C7] flex items-center justify-center text-[#D97706] text-xl mb-5">
-              📘
-            </div>
-            <h2 className="text-[22px] font-bold text-[#111827] mb-2">Lecture</h2>
-            <p className="text-sm leading-6 text-[#6B7280] mb-5">
-              Read or listen to a guided explanation with key concepts and examples.
-            </p>
-            <ul className="space-y-1.5 text-[13px] text-[#6B7280]">
-              <li>• Written explanation</li>
-              <li>• Voice mode available</li>
-              <li>• Key concept cards</li>
-              <li>• Comprehension check</li>
-            </ul>
-            <p className="mt-5 pt-4 border-t border-[#F3F4F6] text-[13px] text-[#9CA3AF]">
-              ~{node.estimatedMinutes} min
-            </p>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => navigate(`/lesson/${encodeURIComponent(node.id)}/practice`)}
-            className="text-left rounded-[20px] border-2 border-[#E5E7EB] bg-white p-7 transition-all hover:-translate-y-1 hover:border-[#22C55E] hover:shadow-[0_12px_32px_rgba(34,197,94,0.14)]"
-          >
-            <div className="w-12 h-12 rounded-xl bg-[#DCFCE7] flex items-center justify-center text-[#16A34A] text-xl mb-5">
-              ✏️
-            </div>
-            <h2 className="text-[22px] font-bold text-[#111827] mb-2">Practice</h2>
-            <p className="text-sm leading-6 text-[#6B7280] mb-5">
-              Solve targeted exercises and get instant feedback on your answers.
-            </p>
-            <ul className="space-y-1.5 text-[13px] text-[#6B7280]">
-              <li>• 3 graded tasks</li>
-              <li>• Step-by-step hints</li>
-              <li>• Instant feedback</li>
-              <li>• XP for correct answers</li>
-            </ul>
-            <p className="mt-5 pt-4 border-t border-[#F3F4F6] text-[13px] text-[#9CA3AF]">
-              ~{Math.max(20, node.estimatedMinutes - 5)} min
-            </p>
-          </button>
-        </div>
-      </section>
-    </main>
+    <VoiceMode
+      onClose={() => navigate(`/dashboard/${encodeURIComponent(node.subject)}`)}
+      subject={node.subject}
+      realSubjectName={node.subject}
+      topic={node.topic}
+      mode="lesson"
+      nodeId={node.id}
+      studentId={studentId}
+      apiBase={apiBase}
+      initialMessages={[]}
+      weakTopics={weakTopics}
+      lastSessionNote={lastSessionNote}
+    />
   )
 }
