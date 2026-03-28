@@ -10,6 +10,7 @@ import type {
   RoadmapNode,
   TutorMessageRequest,
 } from "@shared/types"
+import VoiceMode from "../components/VoiceMode"
 
 // ─── Speech recognition types ────────────────────────────────────────────────
 
@@ -145,6 +146,7 @@ export default function Tutor() {
   const [lastXp, setLastXp] = useState<number | null>(null)
   const [currentPhase, setCurrentPhase] = useState<LessonPhase>("example")
   const [lessonComplete, setLessonComplete] = useState(false)
+  const [voiceModeActive, setVoiceModeActive] = useState(false)
   const [listening, setListening] = useState(false)
 
   // ── Refs ─────────────────────────────────────────────────────────────────────
@@ -412,6 +414,20 @@ export default function Tutor() {
   const isStreaming = streamingContent !== null
 
   return (
+    <>
+      {voiceModeActive && (
+        <VoiceMode
+          onClose={() => setVoiceModeActive(false)}
+          subject={decodedSubject}
+          realSubjectName={realSubjectName}
+          topic={topic}
+          mode={mode}
+          nodeId={nodeId}
+          studentId={studentId ?? ""}
+          apiBase={apiBase}
+          initialMessages={messages}
+        />
+      )}
     <main className="min-h-screen bg-background px-6 py-16 text-foreground font-sans">
       <div className="mx-auto max-w-6xl">
 
@@ -431,11 +447,24 @@ export default function Tutor() {
                 {isLesson ? topic : "Free tutor"}
               </h1>
             </div>
-            {totalXp > 0 && (
-              <div className="rounded-full border border-[#E6D7C5] bg-white/80 px-4 py-1 text-sm">
-                {totalXp} XP this session
-              </div>
-            )}
+          <div className="flex items-center gap-3">
+              {totalXp > 0 && (
+                <div className="rounded-full border border-[#E6D7C5] bg-white/80 px-4 py-1 text-sm">
+                  {totalXp} XP this session
+                </div>
+              )}
+              <button
+                type="button"
+                onClick={() => setVoiceModeActive(true)}
+                className="flex items-center gap-2 rounded-full bg-[#0F172A] px-4 py-2 text-sm font-semibold text-white hover:bg-[#1e293b] transition-colors shadow-md"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
+                  <path d="M19 10v2a7 7 0 0 1-14 0v-2H3v2a9 9 0 0 0 8 8.94V23h-3v2h8v-2h-3v-2.06A9 9 0 0 0 21 12v-2h-2z" />
+                </svg>
+                Voice mode
+              </button>
+            </div>
           </div>
         </div>
 
@@ -656,5 +685,6 @@ export default function Tutor() {
         </div>
       </div>
     </main>
+    </>
   )
 }
