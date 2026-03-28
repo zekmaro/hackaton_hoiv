@@ -313,12 +313,6 @@ export default function SubjectDetail() {
               )}
             </div>
 
-            {loading && (
-              <div className="rounded-xl border border-[#E6D7C5] bg-white/70 p-4 text-sm text-muted-foreground">
-                Loading your roadmap...
-              </div>
-            )}
-
             {!loading && error && (
               <div className="rounded-xl border border-[#E6D7C5] bg-white/70 p-4 text-sm text-muted-foreground">
                 {error}
