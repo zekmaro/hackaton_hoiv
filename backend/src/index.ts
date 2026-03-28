@@ -9,6 +9,7 @@ import { studyPathRouter } from './api/routes/studyPath'
 import { assessmentRouter } from './api/routes/assessment'
 import { memoryRouter } from './api/routes/memory'
 import { ttsRouter } from './api/routes/tts'
+import { lessonRouter } from './api/routes/lesson'
 
 const app = express()
 const PORT = process.env.PORT ?? 3001
@@ -40,6 +41,7 @@ app.use('/api/study-path', studyPathRouter)
 app.use('/api/assessment', assessmentRouter)
 app.use('/api/memory', memoryRouter)
 app.use('/api/tts', ttsRouter)
+app.use('/api/lesson', lessonRouter)
 
 // Global error handler
 app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {

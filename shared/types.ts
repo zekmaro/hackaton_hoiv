@@ -216,6 +216,51 @@ export interface AddSubjectResponse {
   nextFocus: string
 }
 
+// ─── Lesson ───────────────────────────────────────────────────────────────────
+
+export interface LessonKeyPoint {
+  title: string
+  explanation: string
+  example?: string
+}
+
+export interface LessonQuizQuestion {
+  question: string
+  options: string[]
+  correctIndex: number
+  explanation: string
+}
+
+export interface LessonContent {
+  intro: string
+  keyPoints: LessonKeyPoint[]
+  quiz: LessonQuizQuestion[]
+  summary: string
+  xpReward: number
+}
+
+export interface LessonContentRequest {
+  nodeId: string
+  studentId: string
+}
+
+export interface LessonContentResponse {
+  lesson: LessonContent
+  node: RoadmapNode
+}
+
+export interface LessonCompleteRequest {
+  nodeId: string
+  studentId: string
+  score: number
+}
+
+export interface LessonCompleteResponse {
+  xpGained: number
+  nodeUnlocked: string | null
+  message: string
+}
+
 // ─── TTS ──────────────────────────────────────────────────────────────────────
 
 export interface TTSRequest {
