@@ -14,6 +14,8 @@ export async function runTutorAgent(
   subject: string,
   message: string,
   sessionHistory: { role: 'user' | 'assistant'; content: string }[] = [],
+  mode: 'lesson' | 'chat' = 'chat',
+  topic?: string,
 ): Promise<TutorMessageResponse> {
   const agentActivity: AgentActivity[] = []
   const sessionId = `${studentId}-${subject}-${Date.now()}`
@@ -38,7 +40,7 @@ export async function runTutorAgent(
     const response = await client.messages.create({
       model: 'claude-sonnet-4-6',
       max_tokens: 1024,
-      system: getTutorPrompt(subject, studentId),
+      system: getTutorPrompt(subject, studentId, mode, topic),
       tools: tutorTools,
       messages,
     })

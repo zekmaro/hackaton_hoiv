@@ -74,7 +74,10 @@ export interface TutorMessageRequest {
   subject: string
   message: string
   voiceMode: boolean
-  sessionHistory: OnboardChatMessage[]  // full conversation so far, empty on first message
+  mode: 'lesson' | 'chat'   // lesson = structured lesson flow, chat = free tutor
+  topic?: string             // required when mode=lesson, the roadmap node topic
+  nodeId?: string            // roadmap node id, used to unlock on completion
+  sessionHistory: OnboardChatMessage[]
   sessionId?: string
 }
 
