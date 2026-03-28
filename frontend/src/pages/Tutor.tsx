@@ -9,7 +9,6 @@ import type {
   OnboardChatMessage,
   RoadmapNode,
   TutorMessageRequest,
-  TutorMessageResponse,
 } from "@shared/types"
 
 // ─── Speech recognition types ────────────────────────────────────────────────
@@ -17,18 +16,12 @@ import type {
 type SpeechRecognitionEventLike = {
   results: ArrayLike<ArrayLike<{ transcript: string }>>
 }
-
 type SpeechRecognitionInstance = {
-  lang: string
-  interimResults: boolean
-  maxAlternatives: number
-  onresult: ((event: SpeechRecognitionEventLike) => void) | null
-  onend: (() => void) | null
-  onerror: (() => void) | null
-  start: () => void
-  stop: () => void
+  lang: string; interimResults: boolean; maxAlternatives: number
+  onresult: ((e: SpeechRecognitionEventLike) => void) | null
+  onend: (() => void) | null; onerror: (() => void) | null
+  start: () => void; stop: () => void
 }
-
 type SpeechRecognitionConstructor = new () => SpeechRecognitionInstance
 
 // ─── Phase types ─────────────────────────────────────────────────────────────
@@ -41,20 +34,19 @@ const PHASE_LABELS: Record<LessonPhase, string> = {
   challenge: "Challenge",
   complete: "Complete",
 }
-
 const PHASES: LessonPhase[] = ["example", "practice", "challenge", "complete"]
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function parsePhaseMarker(text: string): { clean: string; phase: string | null } {
   const match = text.match(/\[PHASE:([a-z_]+)\]/)
-  const phase = match ? match[1] : null
-  const clean = text.replace(/\[PHASE:[a-z_]+\]/g, "").trim()
-  return { clean, phase }
+  return {
+    phase: match ? match[1] : null,
+    clean: text.replace(/\[PHASE:[a-z_]+\]/g, "").trim(),
+  }
 }
 
 function phaseFromMarker(marker: string | null): LessonPhase | null {
-  if (!marker) return null
   if (marker === "example_done") return "practice"
   if (marker === "practice") return "practice"
   if (marker === "practice_passed") return "challenge"
@@ -63,7 +55,7 @@ function phaseFromMarker(marker: string | null): LessonPhase | null {
   return null
 }
 
-// ─── Markdown message renderer ────────────────────────────────────────────────
+// ─── Markdown renderer ────────────────────────────────────────────────────────
 
 function TutorMessage({ content }: { content: string }) {
   return (
@@ -72,18 +64,16 @@ function TutorMessage({ content }: { content: string }) {
       rehypePlugins={[rehypeKatex]}
       components={{
         p: ({ children }) => <p className="mb-3 last:mb-0 leading-relaxed">{children}</p>,
-        strong: ({ children }) => <strong className="font-bold text-foreground">{children}</strong>,
+        strong: ({ children }) => <strong className="font-bold">{children}</strong>,
         em: ({ children }) => <em className="italic">{children}</em>,
-        code: ({ children, className }) => {
-          const isBlock = className?.includes("language-")
-          return isBlock ? (
+        code: ({ children, className }) =>
+          className?.includes("language-") ? (
             <code className={className}>{children}</code>
           ) : (
             <code className="bg-[#F1F5F9] text-[#0F172A] px-1.5 py-0.5 rounded text-[0.85em] font-mono">
               {children}
             </code>
-          )
-        },
+          ),
         pre: ({ children }) => (
           <pre className="bg-[#F1F5F9] rounded-xl p-4 overflow-x-auto text-sm font-mono my-3 text-[#0F172A]">
             {children}
@@ -109,9 +99,7 @@ function TutorMessage({ content }: { content: string }) {
         th: ({ children }) => (
           <th className="border border-[#E6D7C5] px-3 py-2 text-left font-semibold">{children}</th>
         ),
-        td: ({ children }) => (
-          <td className="border border-[#E6D7C5] px-3 py-2">{children}</td>
-        ),
+        td: ({ children }) => <td className="border border-[#E6D7C5] px-3 py-2">{children}</td>,
         hr: () => <hr className="border-[#E6D7C5] my-4" />,
       }}
     >
@@ -129,7 +117,6 @@ export default function Tutor() {
   const apiBase = import.meta.env.VITE_API_URL ?? ""
   const studentId = localStorage.getItem("studentId")
 
-  // URL params
   const decodedSubject = useMemo(() => decodeURIComponent(subject ?? ""), [subject])
   const searchParams = useMemo(() => new URLSearchParams(location.search), [location.search])
   const topic = searchParams.get("topic") ?? ""
@@ -137,230 +124,214 @@ export default function Tutor() {
   const mode = (searchParams.get("mode") ?? "chat") as "lesson" | "chat"
   const isLesson = mode === "lesson"
 
-  // Real subject name (original casing from DB, not URL lowercase)
   const realSubjectName = useMemo(() => {
-    const studyPath = JSON.parse(localStorage.getItem("studyPath") ?? "[]") as RoadmapNode[]
-    return (
-      studyPath.find((n) => n.subject.toLowerCase() === decodedSubject.toLowerCase())?.subject
-      ?? decodedSubject
-    )
+    const sp = JSON.parse(localStorage.getItem("studyPath") ?? "[]") as RoadmapNode[]
+    return sp.find((n) => n.subject.toLowerCase() === decodedSubject.toLowerCase())?.subject ?? decodedSubject
   }, [decodedSubject])
 
-  // Chat state
+  // ── State ────────────────────────────────────────────────────────────────────
+
+  // Committed messages (only complete, never partial)
   const [messages, setMessages] = useState<OnboardChatMessage[]>([])
+  // In-progress streaming text — null when not streaming
+  const [streamingContent, setStreamingContent] = useState<string | null>(null)
+
   const [agentActivity, setAgentActivity] = useState<AgentActivity[]>([])
   const [input, setInput] = useState("")
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-
-  // XP state
   const [totalXp, setTotalXp] = useState(0)
   const [lastXp, setLastXp] = useState<number | null>(null)
-
-  // Lesson phase state
   const [currentPhase, setCurrentPhase] = useState<LessonPhase>("example")
   const [lessonComplete, setLessonComplete] = useState(false)
-
-  // Mic state
   const [listening, setListening] = useState(false)
+
+  // ── Refs ─────────────────────────────────────────────────────────────────────
+
   const recognitionRef = useRef<SpeechRecognitionInstance | null>(null)
   const autoSentRef = useRef(false)
   const messagesEndRef = useRef<HTMLDivElement | null>(null)
-  // Keep a ref to messages so sendMessage doesn't need messages in its deps
   const messagesRef = useRef<OnboardChatMessage[]>([])
+  const chatContainerRef = useRef<HTMLDivElement | null>(null)
+  // Maps each phase to the message index where it starts (for scroll-to navigation)
+  const phaseStartIndex = useRef<Partial<Record<LessonPhase, number>>>({})
+
   useEffect(() => { messagesRef.current = messages }, [messages])
-  // Track the index of the assistant message being streamed
-  const streamingIndexRef = useRef<number>(-1)
 
-  // ── API URL helper ──────────────────────────────────────────────────────────
+  // ── Display messages: committed + in-progress streaming ───────────────────
 
-  const resolveApiUrl = useCallback(
-    (path: string) =>
-      apiBase.endsWith("/api") ? `${apiBase}${path}` : `${apiBase}/api${path}`,
-    [apiBase]
-  )
+  const displayMessages = useMemo(() => {
+    if (streamingContent === null) return messages
+    return [...messages, { role: "assistant" as const, content: streamingContent }]
+  }, [messages, streamingContent])
 
-  // ── Auto scroll ─────────────────────────────────────────────────────────────
+  // ── Auto scroll ──────────────────────────────────────────────────────────────
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
-  }, [messages])
+  }, [displayMessages])
 
-  // ── Send message ────────────────────────────────────────────────────────────
+  // ── API helper ───────────────────────────────────────────────────────────────
 
-  const sendMessage = useCallback(
-    async (text: string) => {
-      if (!studentId || !subject) {
-        setError("Missing student profile or subject. Return to onboarding first.")
-        return
-      }
-      if (!apiBase) {
-        setError("Missing VITE_API_URL. Configure the backend URL first.")
-        return
-      }
-
-      const trimmed = text.trim()
-      if (!trimmed) return
-
-      // Read current messages from ref — avoids stale closure, keeps sendMessage stable
-      const currentMessages = messagesRef.current
-
-      setMessages([...currentMessages, { role: "user", content: trimmed }])
-      setInput("")
-      setLoading(true)
-      setError(null)
-      setLastXp(null)
-
-      try {
-        const payload: TutorMessageRequest = {
-          studentId,
-          subject: realSubjectName,
-          message: trimmed,
-          voiceMode: false,
-          mode,
-          topic: topic || undefined,
-          nodeId: nodeId || undefined,
-          sessionHistory: currentMessages.map((m) => ({ role: m.role, content: m.content })),
-        }
-
-        const response = await fetch(resolveApiUrl("/tutor/message/stream"), {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        })
-
-        if (!response.ok) throw new Error("Failed to reach the tutor service.")
-        if (!response.body) throw new Error("No response stream.")
-
-        // Add empty assistant placeholder and record its index
-        setMessages((prev) => {
-          streamingIndexRef.current = prev.length
-          return [...prev, { role: "assistant", content: "" }]
-        })
-
-        const reader = response.body.getReader()
-        const decoder = new TextDecoder()
-        let buffer = ""
-        let fullText = ""
-
-        const updateStreamingMessage = (content: string) => {
-          const idx = streamingIndexRef.current
-          if (idx < 0) return
-          setMessages((prev) => {
-            if (idx >= prev.length) return prev
-            const next = [...prev]
-            next[idx] = { role: "assistant", content }
-            return next
-          })
-        }
-
-        while (true) {
-          const { done, value } = await reader.read()
-          if (done) break
-
-          buffer += decoder.decode(value, { stream: true })
-
-          const parts = buffer.split("\n\n")
-          buffer = parts.pop() ?? ""
-
-          for (const part of parts) {
-            const line = part.trim()
-            if (!line.startsWith("data: ")) continue
-            let event: Record<string, unknown>
-            try { event = JSON.parse(line.slice(6)) } catch { continue }
-
-            if (event.type === "chunk") {
-              fullText += event.text as string
-              const { clean } = parsePhaseMarker(fullText)
-              updateStreamingMessage(clean)
-            } else if (event.type === "clear") {
-              fullText = ""
-              updateStreamingMessage("")
-            } else if (event.type === "done") {
-              const { phase } = parsePhaseMarker(fullText)
-              const newPhase = phaseFromMarker(phase)
-              if (newPhase) {
-                setCurrentPhase(newPhase)
-                if (newPhase === "complete") setLessonComplete(true)
-              }
-              const activity = event.agentActivity as AgentActivity[] | undefined
-              if (activity?.length) setAgentActivity((prev) => [...prev, ...activity])
-              const xp = event.xpGained as number | undefined
-              if (xp && xp > 0) { setTotalXp((prev) => prev + xp); setLastXp(xp) }
-            }
-          }
-        }
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Something went wrong.")
-      } finally {
-        setLoading(false)
-        streamingIndexRef.current = -1
-      }
-    },
-    // No `messages` in deps — read from ref instead. sendMessage stays stable across renders.
-    [apiBase, studentId, subject, resolveApiUrl, realSubjectName, mode, topic, nodeId]
+  const resolveApiUrl = useCallback(
+    (path: string) => apiBase.endsWith("/api") ? `${apiBase}${path}` : `${apiBase}/api${path}`,
+    [apiBase]
   )
 
-  // ── Auto-send opening message ───────────────────────────────────────────────
+  // ── Phase scroll navigation ──────────────────────────────────────────────────
+
+  const scrollToPhase = useCallback((phase: LessonPhase) => {
+    const idx = phaseStartIndex.current[phase]
+    if (idx === undefined || !chatContainerRef.current) return
+    const el = chatContainerRef.current.querySelector(`[data-msg-idx="${idx}"]`)
+    el?.scrollIntoView({ behavior: "smooth", block: "start" })
+  }, [])
+
+  // ── Send message ─────────────────────────────────────────────────────────────
+
+  const sendMessage = useCallback(async (text: string) => {
+    if (!studentId || !subject) { setError("Missing student profile."); return }
+    if (!apiBase) { setError("Missing VITE_API_URL."); return }
+    const trimmed = text.trim()
+    if (!trimmed) return
+
+    const currentMessages = messagesRef.current
+    const userMsgIndex = currentMessages.length
+
+    // Record phase 1 start at the first assistant message
+    if (phaseStartIndex.current.example === undefined) {
+      phaseStartIndex.current.example = userMsgIndex + 1
+    }
+
+    setMessages([...currentMessages, { role: "user", content: trimmed }])
+    setInput("")
+    setLoading(true)
+    setError(null)
+    setLastXp(null)
+
+    try {
+      const payload: TutorMessageRequest = {
+        studentId,
+        subject: realSubjectName,
+        message: trimmed,
+        voiceMode: false,
+        mode,
+        topic: topic || undefined,
+        nodeId: nodeId || undefined,
+        sessionHistory: currentMessages.map((m) => ({ role: m.role, content: m.content })),
+      }
+
+      const response = await fetch(resolveApiUrl("/tutor/message/stream"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      })
+
+      if (!response.ok) throw new Error("Failed to reach the tutor service.")
+      if (!response.body) throw new Error("No response stream.")
+
+      // Start streaming — isolated state, never touches messages[]
+      setStreamingContent("")
+      setLoading(false)
+
+      const reader = response.body.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ""
+      let fullText = ""
+      let finalPhase: string | null = null
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+
+        buffer += decoder.decode(value, { stream: true })
+        const parts = buffer.split("\n\n")
+        buffer = parts.pop() ?? ""
+
+        for (const part of parts) {
+          const line = part.trim()
+          if (!line.startsWith("data: ")) continue
+          let event: Record<string, unknown>
+          try { event = JSON.parse(line.slice(6)) } catch { continue }
+
+          if (event.type === "chunk") {
+            fullText += event.text as string
+            setStreamingContent(parsePhaseMarker(fullText).clean)
+          } else if (event.type === "clear") {
+            fullText = ""
+            setStreamingContent("")
+          } else if (event.type === "done") {
+            finalPhase = parsePhaseMarker(fullText).phase
+
+            const activity = event.agentActivity as AgentActivity[] | undefined
+            if (activity?.length) setAgentActivity((prev) => [...prev, ...activity])
+            const xp = event.xpGained as number | undefined
+            if (xp && xp > 0) { setTotalXp((p) => p + xp); setLastXp(xp) }
+          }
+        }
+      }
+
+      // Commit final message to messages[] and clear streaming state
+      const { clean } = parsePhaseMarker(fullText)
+      const committedIndex = messagesRef.current.length + 1 // after user msg
+      setMessages((prev) => [...prev, { role: "assistant", content: clean }])
+      setStreamingContent(null)
+
+      // Update phase after committing
+      const newPhase = phaseFromMarker(finalPhase)
+      if (newPhase) {
+        setCurrentPhase(newPhase)
+        if (newPhase === "complete") setLessonComplete(true)
+        // Record where the next phase's messages start
+        phaseStartIndex.current[newPhase] = committedIndex + 1
+      }
+
+    } catch (err) {
+      setStreamingContent(null)
+      setError(err instanceof Error ? err.message : "Something went wrong.")
+    } finally {
+      setLoading(false)
+    }
+  }, [apiBase, studentId, subject, resolveApiUrl, realSubjectName, mode, topic, nodeId])
+
+  // ── Auto-send opening message ─────────────────────────────────────────────
 
   useEffect(() => {
-    if (topic && messages.length === 0 && !autoSentRef.current) {
+    if (topic && !autoSentRef.current) {
       autoSentRef.current = true
-      // Lesson mode: "Start lesson on: X" triggers the structured lesson flow
-      // Chat mode: "Help me understand: X" starts a free conversation
-      const firstMessage = isLesson
-        ? `Start lesson on: ${topic}`
-        : `Help me understand: ${topic}`
-      void sendMessage(firstMessage)
+      void sendMessage(isLesson ? `Start lesson on: ${topic}` : `Help me understand: ${topic}`)
     }
-  // sendMessage is stable (no messages in deps), so this effect only runs once when topic is set
   }, [topic, isLesson, sendMessage])
 
-  // ── Submit ──────────────────────────────────────────────────────────────────
-
-  const handleSubmit = () => {
-    void sendMessage(input)
-  }
-
-  // ── Mic ─────────────────────────────────────────────────────────────────────
+  // ── Mic ───────────────────────────────────────────────────────────────────────
 
   const toggleListening = () => {
-    const SpeechRecognitionCtor = (
+    const Ctor = (
       window.SpeechRecognition ??
-      (window as typeof window & { webkitSpeechRecognition?: SpeechRecognitionConstructor })
-        .webkitSpeechRecognition
+      (window as typeof window & { webkitSpeechRecognition?: SpeechRecognitionConstructor }).webkitSpeechRecognition
     ) as SpeechRecognitionConstructor | undefined
-
-    if (!SpeechRecognitionCtor) {
-      setError("Speech recognition is not supported in this browser.")
-      return
-    }
+    if (!Ctor) { setError("Speech recognition not supported in this browser."); return }
 
     if (!recognitionRef.current) {
-      const recognition = new SpeechRecognitionCtor()
-      recognition.lang = "en-US"
-      recognition.interimResults = false
-      recognition.maxAlternatives = 1
-      recognition.onresult = (event) => {
-        const transcript = event.results[0]?.[0]?.transcript ?? ""
-        setInput((prev) => (prev ? `${prev} ${transcript}` : transcript))
+      const r = new Ctor()
+      r.lang = "en-US"; r.interimResults = false; r.maxAlternatives = 1
+      r.onresult = (e) => {
+        const t = e.results[0]?.[0]?.transcript ?? ""
+        setInput((p) => p ? `${p} ${t}` : t)
       }
-      recognition.onend = () => setListening(false)
-      recognition.onerror = () => setListening(false)
-      recognitionRef.current = recognition
+      r.onend = () => setListening(false)
+      r.onerror = () => setListening(false)
+      recognitionRef.current = r
     }
 
-    if (listening) {
-      recognitionRef.current?.stop()
-      setListening(false)
-    } else {
-      setError(null)
-      recognitionRef.current?.start()
-      setListening(true)
-    }
+    if (listening) { recognitionRef.current.stop(); setListening(false) }
+    else { setError(null); recognitionRef.current.start(); setListening(true) }
   }
 
-  // ── Render ──────────────────────────────────────────────────────────────────
+  // ── Render ────────────────────────────────────────────────────────────────────
+
+  const currentPhaseIndex = PHASES.indexOf(currentPhase)
+  const isStreaming = streamingContent !== null
 
   return (
     <main className="min-h-screen bg-background px-6 py-16 text-foreground font-sans">
@@ -376,41 +347,45 @@ export default function Tutor() {
             ← Back to roadmap
           </button>
           <div className="flex items-center justify-between gap-4 flex-wrap">
-            <h1 className="text-3xl md:text-4xl font-sans font-bold">
-              {isLesson ? `Lesson: ${topic}` : `Tutor: ${realSubjectName}`}
-            </h1>
+            <div>
+              <p className="text-sm text-muted-foreground mb-1">{realSubjectName}</p>
+              <h1 className="text-2xl md:text-3xl font-sans font-bold">
+                {isLesson ? topic : "Free tutor"}
+              </h1>
+            </div>
             {totalXp > 0 && (
-              <div className="rounded-full border border-[#E6D7C5] bg-white/80 px-4 py-1 text-sm text-foreground">
-                {totalXp} XP earned this session
+              <div className="rounded-full border border-[#E6D7C5] bg-white/80 px-4 py-1 text-sm">
+                {totalXp} XP this session
               </div>
             )}
           </div>
-          {topic && !isLesson && (
-            <p className="mt-2 text-sm text-muted-foreground">Topic: {topic}</p>
-          )}
         </div>
 
-        {/* Phase indicator — only in lesson mode */}
+        {/* Phase progress bar — lesson mode only */}
         {isLesson && (
           <div className="mb-6 flex items-center gap-2 flex-wrap">
             {PHASES.map((phase, i) => {
-              const currentIndex = PHASES.indexOf(currentPhase)
               const phaseIndex = PHASES.indexOf(phase)
-              const isDone = phaseIndex < currentIndex
+              const isDone = phaseIndex < currentPhaseIndex
               const isActive = phase === currentPhase
+              const isClickable = isDone && phaseStartIndex.current[phase] !== undefined
               return (
                 <span key={phase} className="flex items-center gap-2">
-                  <span
-                    className={`px-3 py-1 rounded-full border text-xs font-semibold transition-colors ${
+                  <button
+                    type="button"
+                    onClick={() => isClickable && scrollToPhase(phase)}
+                    disabled={!isClickable}
+                    title={isClickable ? `Jump to ${PHASE_LABELS[phase]}` : undefined}
+                    className={`px-3 py-1 rounded-full border text-xs font-semibold transition-all ${
                       isDone
-                        ? "bg-[#22C55E]/10 border-[#22C55E]/30 text-[#15803D]"
+                        ? "bg-[#22C55E]/10 border-[#22C55E]/30 text-[#15803D] cursor-pointer hover:bg-[#22C55E]/20"
                         : isActive
-                        ? "bg-[#FF8C00] border-[#FF8C00] text-white"
-                        : "bg-white/60 border-[#E6D7C5] text-muted-foreground"
+                        ? "bg-[#FF8C00] border-[#FF8C00] text-white cursor-default"
+                        : "bg-white/60 border-[#E6D7C5] text-muted-foreground cursor-default opacity-50"
                     }`}
                   >
-                    {PHASE_LABELS[phase]}
-                  </span>
+                    {isDone ? "✓ " : ""}{PHASE_LABELS[phase]}
+                  </button>
                   {i < PHASES.length - 1 && (
                     <span className="text-muted-foreground text-xs">→</span>
                   )}
@@ -421,44 +396,49 @@ export default function Tutor() {
         )}
 
         {/* Main layout */}
-        <div className="grid grid-cols-[1fr_320px] gap-6 max-[900px]:grid-cols-1">
+        <div className="grid grid-cols-[1fr_300px] gap-6 max-[900px]:grid-cols-1">
 
           {/* Chat panel */}
-          <section className="rounded-2xl border border-[#E6D7C5] bg-[#FFF4CC]/70 p-6 flex flex-col gap-4 min-h-[420px]">
+          <section className="rounded-2xl border border-[#E6D7C5] bg-[#FFF4CC]/70 p-6 flex flex-col gap-4 min-h-[480px]">
 
             {/* Messages */}
-            <div className="flex-1 space-y-4 overflow-y-auto max-h-[520px] pr-1">
-              {messages.length === 0 && !loading && (
+            <div
+              ref={chatContainerRef}
+              className="flex-1 space-y-5 overflow-y-auto max-h-[560px] pr-1"
+            >
+              {displayMessages.length === 0 && !loading && !isStreaming && (
                 <div className="rounded-xl border border-[#E6D7C5] bg-white/80 p-4 text-sm text-muted-foreground">
-                  {isLesson
-                    ? `Starting your lesson on ${topic}...`
-                    : topic
-                    ? `Ready to explore ${topic}. Ask a question to begin.`
-                    : "Ask your tutor anything to begin."}
+                  {isLesson ? `Starting lesson on "${topic}"…` : "Ask your tutor anything to begin."}
                 </div>
               )}
 
-              {messages.map((message, index) => (
+              {displayMessages.map((msg, index) => (
                 <div
-                  key={`${message.role}-${index}`}
-                  className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}
+                  key={index}
+                  data-msg-idx={index}
+                  className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
                 >
-                  {message.role === "assistant" ? (
+                  {msg.role === "assistant" ? (
                     <div className="w-full rounded-2xl border border-[#E6D7C5] bg-white/95 px-5 py-4 text-sm text-foreground shadow-sm">
-                      <TutorMessage content={message.content} />
+                      <TutorMessage content={msg.content} />
+                      {/* Cursor blink while this is the streaming message */}
+                      {isStreaming && index === displayMessages.length - 1 && (
+                        <span className="inline-block w-0.5 h-4 bg-[#FF8C00] animate-pulse ml-0.5 align-middle" />
+                      )}
                     </div>
                   ) : (
                     <div className="max-w-[75%] rounded-2xl bg-[#FF8C00] px-4 py-3 text-sm text-white shadow-sm leading-relaxed">
-                      {message.content}
+                      {msg.content}
                     </div>
                   )}
                 </div>
               ))}
 
-              {loading && (
+              {/* Only show Thinking... when waiting for first chunk, not during streaming */}
+              {loading && !isStreaming && (
                 <div className="flex justify-start">
                   <div className="rounded-2xl border border-[#E6D7C5] bg-white/90 px-4 py-3 text-sm text-muted-foreground">
-                    Thinking...
+                    Thinking…
                   </div>
                 </div>
               )}
@@ -466,25 +446,17 @@ export default function Tutor() {
               <div ref={messagesEndRef} />
             </div>
 
-            {/* XP flash */}
             {lastXp !== null && lastXp > 0 && (
               <p className="text-sm font-semibold text-[#B45309]">+{lastXp} XP earned</p>
             )}
 
-            {/* Lesson complete banner */}
             {lessonComplete && (
               <div className="rounded-xl border border-[#22C55E]/40 bg-[#22C55E]/10 p-5 flex flex-col gap-3">
-                <p className="text-[#15803D] font-bold text-lg">
-                  Lesson complete! +{totalXp} XP earned
-                </p>
-                <p className="text-sm text-muted-foreground">
-                  You mastered: {topic}
-                </p>
+                <p className="text-[#15803D] font-bold text-lg">Lesson complete! +{totalXp} XP earned</p>
+                <p className="text-sm text-muted-foreground">You mastered: {topic}</p>
                 <button
                   type="button"
-                  onClick={() =>
-                    navigate(`/dashboard/${encodeURIComponent(decodedSubject)}`)
-                  }
+                  onClick={() => navigate(`/dashboard/${encodeURIComponent(decodedSubject)}`)}
                   className="self-start rounded-xl bg-[#22C55E] px-5 py-2 text-sm font-bold text-white hover:bg-green-600 transition-colors"
                 >
                   Back to roadmap →
@@ -492,39 +464,36 @@ export default function Tutor() {
               </div>
             )}
 
-            {/* Error */}
             {error && <p className="text-sm text-[#B91C1C]">{error}</p>}
 
-            {/* Input row */}
             {!lessonComplete && (
               <div className="flex items-center gap-2">
                 <input
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
-                  placeholder={isLesson ? "Answer the problem..." : "Type your question..."}
-                  className="flex-1 rounded-xl border border-[#E6D7C5] bg-white/80 px-4 py-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-[#FF8C00]/40"
+                  placeholder={isLesson ? "Show your working…" : "Type your question…"}
+                  disabled={isStreaming}
+                  className="flex-1 rounded-xl border border-[#E6D7C5] bg-white/80 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#FF8C00]/40 disabled:opacity-50"
                   onKeyDown={(e) => {
-                    if (e.key === "Enter" && !e.shiftKey) {
-                      e.preventDefault()
-                      handleSubmit()
-                    }
+                    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void sendMessage(input) }
                   }}
                 />
                 <button
                   type="button"
                   onClick={toggleListening}
-                  className={`rounded-xl border px-4 py-3 text-sm font-semibold transition-colors ${
+                  disabled={isStreaming}
+                  className={`rounded-xl border px-4 py-3 text-sm font-semibold transition-colors disabled:opacity-50 ${
                     listening
                       ? "border-[#FF8C00] text-[#FF8C00] bg-[#FFEC99]"
                       : "border-[#E6D7C5] text-muted-foreground bg-white/80 hover:border-[#FF8C00] hover:text-[#FF8C00]"
                   }`}
                 >
-                  {listening ? "Listening..." : "Mic"}
+                  {listening ? "Listening…" : "Mic"}
                 </button>
                 <button
                   type="button"
-                  onClick={handleSubmit}
-                  disabled={loading || !input.trim()}
+                  onClick={() => void sendMessage(input)}
+                  disabled={loading || isStreaming || !input.trim()}
                   className="rounded-xl bg-[#FF8C00] px-5 py-3 text-sm font-semibold text-white shadow-sm hover:bg-[#e07b00] transition-colors disabled:opacity-60"
                 >
                   Send
@@ -535,20 +504,17 @@ export default function Tutor() {
 
           {/* Agent activity sidebar */}
           <aside className="rounded-2xl border border-[#E6D7C5] bg-[#FFF4CC]/70 p-6">
-            <h2 className="text-lg font-sans font-bold mb-4">Agent activity</h2>
+            <h2 className="text-base font-sans font-bold mb-4">Agent activity</h2>
             {agentActivity.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                Agent updates will appear here once the tutor responds.
-              </p>
+              <p className="text-sm text-muted-foreground">Agent updates appear here once the tutor responds.</p>
             ) : (
               <ul className="space-y-3 max-h-[480px] overflow-y-auto">
-                {agentActivity.map((activity, index) => (
+                {agentActivity.map((a, i) => (
                   <li
-                    key={`${activity.agent}-${activity.timestamp}-${index}`}
-                    className="rounded-xl border border-[#E6D7C5] bg-white/80 px-3 py-2 text-sm text-foreground"
+                    key={`${a.agent}-${a.timestamp}-${i}`}
+                    className="rounded-xl border border-[#E6D7C5] bg-white/80 px-3 py-2 text-xs"
                   >
-                    <span className="font-semibold">[{activity.agent}]</span>{" "}
-                    {activity.action}
+                    <span className="font-semibold text-[#8B5CF6]">[{a.agent}]</span> {a.action}
                   </li>
                 ))}
               </ul>
