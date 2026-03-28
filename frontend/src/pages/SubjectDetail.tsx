@@ -37,6 +37,17 @@ type SubjectDetailResponse = {
   studyHoursPerDay?: number
 }
 
+type StudyPathResponse = {
+  studentId: string
+  studyPath: RoadmapNodeWithLesson[]
+  xp: number
+  level: number
+  streak: number
+  nextExam: { subject: string; date: string; daysLeft: number } | null
+  todaysFocus: { subject: string; topic: string; reason: string }
+  badges?: { id: string; name: string; icon: string }[]
+}
+
 const statusStyles: Record<RoadmapStatusLabel, string> = {
   "In progress": "bg-[rgba(230,126,0,0.12)] border-[rgba(230,126,0,0.3)] text-[#B45309]",
   "Up next": "bg-[rgba(59,130,246,0.1)] border-[rgba(59,130,246,0.3)] text-[#1D4ED8]",
@@ -70,6 +81,11 @@ export default function SubjectDetail() {
     [apiBase]
   )
 
+  const normalizeSubject = useCallback(
+    (value: string) => value.toLowerCase().replace(/\s+/g, "-"),
+    []
+  )
+
   const loadStudyPath = useCallback(async () => {
     if (!apiBase || !studentId) {
       setError("Study path data is not available yet.")
@@ -79,30 +95,49 @@ export default function SubjectDetail() {
     setLoading(true)
     setError(null)
     try {
-      const response = await fetch(
+      const subjectResponse = await fetch(
         resolveApiUrl(`/study-path/${studentId}/${encodeURIComponent(decodedSubject)}`)
       )
+      if (subjectResponse.ok) {
+        const data = (await subjectResponse.json()) as SubjectDetailResponse
+        if (Array.isArray(data.nodes)) {
+          setRoadmap(data.nodes)
+          const existing = JSON.parse(localStorage.getItem("studyPath") ?? "[]") as RoadmapNode[]
+          const merged = [
+            ...existing.filter((node) => node.subject.toLowerCase() !== data.subject.toLowerCase()),
+            ...data.nodes,
+          ]
+          localStorage.setItem("studyPath", JSON.stringify(merged))
+        }
+        setStudyMeta(data)
+        if (data.subject) {
+          setSubjectName(data.subject)
+        }
+        return
+      }
+
+      const response = await fetch(resolveApiUrl(`/study-path/${studentId}`))
       if (!response.ok) throw new Error("Failed to load your study path.")
-      const data = (await response.json()) as SubjectDetailResponse
-      if (Array.isArray(data.nodes)) {
-        setRoadmap(data.nodes)
-        const existing = JSON.parse(localStorage.getItem("studyPath") ?? "[]") as RoadmapNode[]
-        const merged = [
-          ...existing.filter((node) => node.subject.toLowerCase() !== data.subject.toLowerCase()),
-          ...data.nodes,
-        ]
-        localStorage.setItem("studyPath", JSON.stringify(merged))
+      const data = (await response.json()) as StudyPathResponse
+      if (Array.isArray(data.studyPath)) {
+        setRoadmap(data.studyPath)
+        localStorage.setItem("studyPath", JSON.stringify(data.studyPath))
       }
-      setStudyMeta(data)
-      if (data.subject) {
-        setSubjectName(data.subject)
-      }
+      setStudyMeta({
+        subject: subjectName,
+        nodes: data.studyPath.filter(
+          (node) => normalizeSubject(node.subject) === normalizeSubject(subjectKey)
+        ),
+        xp: data.xp,
+        streak: data.streak,
+        badges: data.badges ?? [],
+      })
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong.")
     } finally {
       setLoading(false)
     }
-  }, [apiBase, studentId, resolveApiUrl, decodedSubject])
+  }, [apiBase, studentId, resolveApiUrl, decodedSubject, normalizeSubject, subjectKey, subjectName])
 
   useEffect(() => {
     void loadStudyPath()
@@ -113,11 +148,6 @@ export default function SubjectDetail() {
       setSubjectName(decodedSubject.charAt(0).toUpperCase() + decodedSubject.slice(1))
     }
   }, [decodedSubject])
-
-  const normalizeSubject = useCallback(
-    (value: string) => value.toLowerCase().replace(/\s+/g, "-"),
-    []
-  )
 
   const subjectNodes = useMemo(
     () =>
@@ -299,7 +329,11 @@ export default function SubjectDetail() {
                   const locked = node.status === "locked"
                   const onClick = () => {
                     if (locked) return
-                    navigate(`/lesson/${encodeURIComponent(node.id)}`)
+                    navigate(
+                      `/tutor/${encodeURIComponent(node.subject)}?mode=lesson&topic=${encodeURIComponent(
+                        node.topic
+                      )}&nodeId=${encodeURIComponent(node.id)}`
+                    )
                   }
 
                   return (
@@ -354,7 +388,13 @@ export default function SubjectDetail() {
               </div>
               <button
                 type="button"
-                onClick={() => navigate(`/lesson/${encodeURIComponent(nextNode.id)}`)}
+                onClick={() =>
+                  navigate(
+                    `/tutor/${encodeURIComponent(nextNode.subject)}?mode=lesson&topic=${encodeURIComponent(
+                      nextNode.topic
+                    )}&nodeId=${encodeURIComponent(nextNode.id)}`
+                  )
+                }
                 className="h-12 px-7 rounded-[10px] bg-[#FF8C00] text-white text-[15px] font-sans font-bold hover:bg-[#e07b00] hover:-translate-y-0.5 hover:shadow-[0_6px_18px_rgba(255,140,0,0.35)] transition-all"
               >
                 Start now
