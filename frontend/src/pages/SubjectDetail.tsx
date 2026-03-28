@@ -338,11 +338,7 @@ export default function SubjectDetail() {
                   const locked = node.status === "locked"
                   const onClick = () => {
                     if (locked) return
-                    navigate(
-                      `/tutor/${encodeURIComponent(node.subject)}?mode=lesson&topic=${encodeURIComponent(
-                        node.topic
-                      )}&nodeId=${encodeURIComponent(node.id)}`
-                    )
+                    navigate(`/lesson/${encodeURIComponent(node.id)}`)
                   }
 
                   return (
@@ -395,13 +391,7 @@ export default function SubjectDetail() {
               </div>
               <button
                 type="button"
-                onClick={() =>
-                  navigate(
-                    `/tutor/${encodeURIComponent(nextNode.subject)}?mode=lesson&topic=${encodeURIComponent(
-                      nextNode.topic
-                    )}&nodeId=${encodeURIComponent(nextNode.id)}`
-                  )
-                }
+                onClick={() => navigate(`/lesson/${encodeURIComponent(nextNode.id)}`)}
                 className="h-12 px-7 rounded-[10px] bg-[#FF8C00] text-white text-[15px] font-sans font-bold hover:bg-[#e07b00] hover:-translate-y-0.5 hover:shadow-[0_6px_18px_rgba(255,140,0,0.35)] transition-all"
               >
                 Start now

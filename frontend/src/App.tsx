@@ -16,6 +16,7 @@ function App() {
         <Route path="/dashboard/:subject" element={<SubjectDetail />} />
         <Route path="/tutor/:subject" element={<Tutor />} />
         <Route path="/lesson/:nodeId" element={<Lesson />} />
+        <Route path="/lesson/:nodeId/:lessonMode" element={<Lesson />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>

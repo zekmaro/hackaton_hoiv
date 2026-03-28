@@ -155,6 +155,7 @@ export default function Tutor() {
   const searchParams = useMemo(() => new URLSearchParams(location.search), [location.search])
   const topic = searchParams.get("topic") ?? ""
   const nodeId = searchParams.get("nodeId") ?? ""
+  const lessonMode = (searchParams.get("lessonMode") ?? "lecture") as "lecture" | "practice"
   const mode = (searchParams.get("mode") ?? "chat") as "lesson" | "chat"
   const isLesson = mode === "lesson"
 
@@ -172,7 +173,9 @@ export default function Tutor() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [totalXp, setTotalXp] = useState(0)
-  const [currentPhase, setCurrentPhase] = useState<LessonPhase>("example")
+  const [currentPhase, setCurrentPhase] = useState<LessonPhase>(
+    isLesson && lessonMode === "practice" ? "practice" : "example"
+  )
   const [lessonComplete, setLessonComplete] = useState(false)
   const [voiceModeActive, setVoiceModeActive] = useState(false)
   const [listening, setListening] = useState(false)
@@ -347,9 +350,13 @@ export default function Tutor() {
   useEffect(() => {
     if (topic && !autoSentRef.current) {
       autoSentRef.current = true
-      void sendMessage(isLesson ? `Start lesson on: ${topic}` : `Help me understand: ${topic}`)
+      const lessonKickoff =
+        lessonMode === "practice"
+          ? `Start practice on: ${topic}`
+          : `Start lecture on: ${topic}`
+      void sendMessage(isLesson ? lessonKickoff : `Help me understand: ${topic}`)
     }
-  }, [topic, isLesson, sendMessage])
+  }, [topic, isLesson, sendMessage, lessonMode])
 
   // ── Mic ───────────────────────────────────────────────────────────────────────
 
