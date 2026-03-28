@@ -11,6 +11,14 @@ import type {
   TutorMessageRequest,
 } from "@shared/types"
 import VoiceMode from "../components/VoiceMode"
+import {
+  buildClientTutorNote,
+  buildDebriefCopy,
+  buildTutorOpeningLine,
+  getFeedbackLabel,
+  getFeedbackVariant,
+  getTaskIntro,
+} from "../lib/tutor-ux"
 
 type SpeechRecognitionEventLike = {
   results: ArrayLike<ArrayLike<{ transcript: string }>>
@@ -50,6 +58,12 @@ type PracticeAnswerResponse = {
   isLastTask: boolean
   nextQuestion: PracticeQuestion | null
   totalXpEarned: number
+}
+
+type SubjectProfileResponse = {
+  subject?: string
+  weakTopics?: string[]
+  lastSessionNote?: string
 }
 
 function parsePhaseMarker(text: string): { clean: string; phase: string | null } {
@@ -133,6 +147,7 @@ export default function Tutor() {
 
   const apiBase = import.meta.env.VITE_API_URL ?? ""
   const studentId = localStorage.getItem("studentId")
+  const studentName = localStorage.getItem("studentName") ?? "Student"
 
   const decodedSubject = useMemo(() => decodeURIComponent(subject ?? ""), [subject])
   const searchParams = useMemo(() => new URLSearchParams(location.search), [location.search])
@@ -158,11 +173,54 @@ export default function Tutor() {
   const lessonTitle = useMemo(() => {
     return nodeFromStorage?.topic ?? topic
   }, [nodeFromStorage, topic])
+  const lectureOpeningLine = useMemo(
+    () =>
+      buildTutorOpeningLine({
+        studentName,
+        subject: realSubjectName,
+        mode: "lecture",
+        weakTopics: subjectWeakTopics,
+        lastSessionNote,
+      }),
+    [lastSessionNote, realSubjectName, studentName, subjectWeakTopics]
+  )
+  const practiceOpeningLine = useMemo(
+    () =>
+      buildTutorOpeningLine({
+        studentName,
+        subject: realSubjectName,
+        mode: "practice",
+        weakTopics: subjectWeakTopics,
+        lastSessionNote,
+      }),
+    [lastSessionNote, realSubjectName, studentName, subjectWeakTopics]
+  )
 
   const resolveApiUrl = useCallback(
     (path: string) => (apiBase.endsWith("/api") ? `${apiBase}${path}` : `${apiBase}/api${path}`),
     [apiBase]
   )
+
+  useEffect(() => {
+    if (!apiBase || !studentId || !realSubjectName) return
+    void (async () => {
+      try {
+        const response = await fetch(
+          resolveApiUrl(`/study-path/${studentId}/${encodeURIComponent(realSubjectName)}`)
+        )
+        if (!response.ok) return
+        const data = (await response.json()) as SubjectProfileResponse
+        if (Array.isArray(data.weakTopics)) {
+          setSubjectWeakTopics(data.weakTopics.filter(Boolean))
+        }
+        if (typeof data.lastSessionNote === "string" && data.lastSessionNote.trim()) {
+          setLastSessionNote(data.lastSessionNote.trim())
+        }
+      } catch {
+        // Non-blocking optional context.
+      }
+    })()
+  }, [apiBase, realSubjectName, resolveApiUrl, studentId])
 
   const recognitionRef = useRef<SpeechRecognitionInstance | null>(null)
   const abortControllerRef = useRef<AbortController | null>(null)
@@ -206,6 +264,11 @@ export default function Tutor() {
   const [totalPracticeXp, setTotalPracticeXp] = useState(0)
   const [correctCount, setCorrectCount] = useState(0)
   const [practiceApiAvailable, setPracticeApiAvailable] = useState<boolean | null>(null)
+  const [practiceScore, setPracticeScore] = useState<number | undefined>(undefined)
+  const [consecutiveWrong, setConsecutiveWrong] = useState(0)
+  const [subjectWeakTopics, setSubjectWeakTopics] = useState<string[]>([])
+  const [lastSessionNote, setLastSessionNote] = useState<string | null>(null)
+  const [showDebrief, setShowDebrief] = useState(false)
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" })
@@ -488,15 +551,29 @@ export default function Tutor() {
         })
         if (!response.ok) throw new Error("Could not submit answer.")
         const data = (await response.json()) as PracticeAnswerResponse
-        setFeedback(data.feedback)
+        const currentScore = typeof data.score === "number" ? data.score : data.isCorrect ? 1 : 0
+        const prefix = currentScore === 0 ? "Not quite - let me rephrase that for you. " : "Exactly right. Let me push you a bit further. "
+        setFeedback(`${prefix}${data.feedback}`)
         setIsCorrect(data.isCorrect)
+        setPracticeScore(currentScore)
         setXpAwarded(data.xpAwarded)
         setCorrectAnswer(data.correctAnswer)
         setFollowUp(data.followUp)
         setTotalPracticeXp(data.totalXpEarned)
         if (data.xpAwarded > 0) setTotalXp((prev) => prev + data.xpAwarded)
         if (data.isCorrect) setCorrectCount((prev) => prev + 1)
-        setPracticeQuestion((prev) => data.nextQuestion ?? prev)
+        if (currentScore === 0) {
+          setConsecutiveWrong((prev) => prev + 1)
+        } else {
+          setConsecutiveWrong(0)
+        }
+        setPracticeQuestion((prev) => {
+          if (!data.nextQuestion) return prev
+          if (currentScore === 0 && consecutiveWrong + 1 >= 2) {
+            return { ...data.nextQuestion, type: "conceptual" }
+          }
+          return data.nextQuestion
+        })
         setPracticeState(data.isLastTask ? "complete" : "submitted")
       } else {
         const reply = await streamTutorMessage({
@@ -510,8 +587,10 @@ export default function Tutor() {
           sessionHistory: [],
         })
         const looksCorrect = /\b(correct|good|great|exactly|nice)\b/i.test(reply.text)
-        setFeedback(reply.text)
+        const prefix = looksCorrect ? "Exactly right. Let me push you a bit further. " : "Not quite - let me rephrase that for you. "
+        setFeedback(`${prefix}${reply.text}`)
         setIsCorrect(looksCorrect)
+        setPracticeScore(looksCorrect ? 1 : 0)
         const awarded = looksCorrect ? 20 : 0
         setXpAwarded(awarded)
         setCorrectAnswer(null)
@@ -520,6 +599,9 @@ export default function Tutor() {
         if (awarded > 0) {
           setCorrectCount((prev) => prev + 1)
           setTotalXp((prev) => prev + awarded)
+          setConsecutiveWrong(0)
+        } else {
+          setConsecutiveWrong((prev) => prev + 1)
         }
         if (taskIndex >= totalTasks - 1) {
           setPracticeState("complete")
@@ -533,7 +615,7 @@ export default function Tutor() {
       setPracticeLoading(false)
       setHint(null)
     }
-  }, [lessonTitle, nodeId, practiceAnswer, practiceApiAvailable, practiceLoading, practiceQuestion?.question, practiceSessionId, realSubjectName, resolveApiUrl, streamTutorMessage, studentId, taskIndex, totalTasks])
+  }, [consecutiveWrong, lessonTitle, nodeId, practiceAnswer, practiceApiAvailable, practiceLoading, practiceQuestion?.question, practiceSessionId, realSubjectName, resolveApiUrl, streamTutorMessage, studentId, taskIndex, totalTasks])
 
   const goToNextPractice = useCallback(async () => {
     setPracticeAnswer("")
@@ -556,7 +638,10 @@ export default function Tutor() {
       const next = await streamTutorMessage({
         studentId,
         subject: realSubjectName,
-        message: `Give me the next practice question for ${lessonTitle}. Keep it focused and concise.`,
+        message:
+          consecutiveWrong >= 2
+            ? `Give me a simpler conceptual practice question for ${lessonTitle} to rebuild fundamentals.`
+            : `Give me the next practice question for ${lessonTitle}. Keep it focused and concise.`,
         voiceMode: false,
         mode: "lesson",
         topic: lessonTitle,
@@ -565,7 +650,7 @@ export default function Tutor() {
       })
       setPracticeQuestion({
         taskIndex: taskIndex + 1,
-        type: "application",
+        type: consecutiveWrong >= 2 ? "conceptual" : "application",
         question: next.text,
         context: null,
       })
@@ -574,7 +659,7 @@ export default function Tutor() {
       setError(err instanceof Error ? err.message : "Failed to load next question.")
       setPracticeState("question")
     }
-  }, [lessonTitle, nodeId, practiceApiAvailable, realSubjectName, streamTutorMessage, studentId, taskIndex])
+  }, [consecutiveWrong, lessonTitle, nodeId, practiceApiAvailable, realSubjectName, streamTutorMessage, studentId, taskIndex])
 
   const completeLesson = useCallback(async () => {
     if (!studentId || !nodeId || !apiBase) return
@@ -588,6 +673,24 @@ export default function Tutor() {
       // Keep UI success regardless of completion endpoint response.
     }
   }, [apiBase, correctCount, nodeId, resolveApiUrl, studentId])
+
+  const saveTutorNote = useCallback(() => {
+    const notes = JSON.parse(localStorage.getItem("tutorNotesBySubject") ?? "{}") as Record<string, string>
+    notes[realSubjectName.toLowerCase()] = buildClientTutorNote({
+      subject: realSubjectName,
+      correctCount,
+      totalTasks,
+    })
+    localStorage.setItem("tutorNotesBySubject", JSON.stringify(notes))
+  }, [correctCount, realSubjectName, totalTasks])
+
+  const handleReturnToRoadmap = useCallback(() => {
+    saveTutorNote()
+    setShowDebrief(true)
+    window.setTimeout(() => {
+      navigate(`/dashboard/${encodeURIComponent(realSubjectName)}`)
+    }, 2500)
+  }, [navigate, realSubjectName, saveTutorNote])
 
   useEffect(() => {
     if (!isLesson || lessonMode !== "lecture") return
@@ -696,6 +799,7 @@ export default function Tutor() {
   }, [input, messages, nodeId, realSubjectName, streamTutorMessage, studentId, topic])
 
   if (isLesson && lessonMode === "lecture") {
+    const lectureSectionCount = (lectureContent.match(/^##\s+/gm) ?? []).length
     return (
       <>
         {voiceModeActive && (
@@ -711,8 +815,8 @@ export default function Tutor() {
             initialMessages={lectureContent ? [{ role: "assistant", content: lectureContent }] : []}
           />
         )}
-        <main className="min-h-screen bg-[#F8F7F4] font-sans text-[#5A3E36]">
-          <div className="sticky top-0 z-20 bg-[#F8F7F4]/95 backdrop-blur border-b border-[#E6D7C5] px-6 py-3">
+        <main className="min-h-screen bg-[#F5F0E8] font-sans text-[#5A3E36]">
+          <div className="sticky top-0 z-20 bg-[#F5F0E8]/95 backdrop-blur border-b border-[#E8E0D4] px-8 h-[52px] flex items-center">
             <div className="mx-auto max-w-4xl flex items-center justify-between gap-3">
               <button
                 type="button"
@@ -740,7 +844,23 @@ export default function Tutor() {
             <p className="text-[11px] font-semibold tracking-[0.1em] uppercase text-[#9CA3AF] mb-2">Lecture</p>
             <h1 className="text-4xl font-extrabold leading-tight text-[#5A3E36] mb-7">{lessonTitle}</h1>
 
+            <div className="tutor-bubble mb-6">
+              <div className="tutor-bubble-header">
+                <div className="tutor-identity">
+                  <div className="tutor-avatar">🎓</div>
+                  <span className="tutor-name">Your tutor</span>
+                </div>
+              </div>
+              <p className="tutor-intro-text">"{lectureOpeningLine}"</p>
+            </div>
+
             <LessonDoc content={lectureContent} isStreaming={isLectureStreaming} />
+
+            {isLectureStreaming && lectureSectionCount >= 2 && (
+              <div className="lecture-checkpoint">
+                <p>Making sense so far? If anything is unclear, ask below before we continue.</p>
+              </div>
+            )}
 
             {isLectureStreaming && (
               <div className="mt-8 flex items-center gap-2 text-sm text-[#9CA3AF]">
@@ -821,9 +941,17 @@ export default function Tutor() {
   }
 
   if (isLesson && lessonMode === "practice") {
+    const feedbackVariant = getFeedbackVariant(practiceScore, isCorrect)
+    const feedbackLabel = getFeedbackLabel(feedbackVariant)
+    const debrief = buildDebriefCopy({
+      name: studentName,
+      subject: realSubjectName,
+      correctCount,
+      totalTasks,
+    })
     return (
-      <main className="min-h-screen bg-[#F8F7F4] font-sans text-[#5A3E36]">
-        <div className="sticky top-0 z-20 bg-[#F8F7F4]/95 backdrop-blur border-b border-[#E6D7C5] px-6 py-3">
+      <main className="practice-page min-h-screen font-sans text-[#5A3E36]">
+        <div className="sticky top-0 z-20 bg-[#F5F0E8]/95 backdrop-blur border-b border-[#E8E0D4] px-8 h-[52px] flex items-center">
           <div className="mx-auto max-w-4xl flex items-center justify-between gap-3">
             <button
               type="button"
@@ -833,63 +961,79 @@ export default function Tutor() {
               ← Back to lesson
             </button>
             <div className="flex items-center gap-2">
-              <span className="rounded-full bg-[#FFF4CC] text-[#9CA3AF] px-3 py-1 text-xs font-semibold">Lecture</span>
+              <span className="rounded-full bg-[#FEF3C7] text-[#92400E] px-3.5 py-1 text-[13px] font-semibold">Lecture</span>
               <span className="text-[#9CA3AF] text-xs">→</span>
-              <span className="rounded-full bg-[#FF8C00] text-white px-3 py-1 text-xs font-bold">Practice</span>
+              <span className="rounded-full bg-[#E67E00] text-white px-3.5 py-1 text-[13px] font-bold">Practice</span>
             </div>
-            <span className="text-xs text-[#6C4F3D] font-semibold">
+            <span className="text-sm text-[#9C8A72] font-medium">
               {Math.min(taskIndex + 1, totalTasks)} / {totalTasks}
             </span>
           </div>
         </div>
 
-        <section className="mx-auto max-w-3xl px-6 py-10">
-          <p className="text-[11px] font-semibold tracking-[0.1em] uppercase text-[#9CA3AF] mb-2">Practice</p>
-          <h1 className="text-4xl font-extrabold leading-tight text-[#5A3E36] mb-8">{lessonTitle}</h1>
+        <section className="practice-content">
+          <p className="practice-label">Practice</p>
+          <h1 className="practice-title">{lessonTitle}</h1>
 
-          <div className="mb-8 flex items-center gap-2">
+          <div className="task-progress">
             {Array.from({ length: totalTasks }).map((_, index) => {
               const isDone = index < taskIndex
               const isActive = index === taskIndex && practiceState !== "complete"
-              const cls = isDone
-                ? "bg-[#22C55E]"
-                : isActive
-                  ? "bg-[#FF8C00]"
-                  : "bg-[#E6D7C5]"
-              return <span key={index} className={`h-2.5 w-2.5 rounded-full ${cls}`} />
+              const cls = isDone ? "task-dot--done" : isActive ? "task-dot--active" : "task-dot--upcoming"
+              return <span key={index} className={`task-dot ${cls}`} />
             })}
+            <span className="task-progress-label">
+              Task {Math.min(taskIndex + 1, totalTasks)} of {totalTasks}
+            </span>
           </div>
 
           {practiceState === "loading" && (
-            <div className="rounded-2xl border border-[#E6D7C5] bg-white p-8 text-[#6C4F3D]">
-              Preparing your practice session...
+            <div className="tutor-bubble" style={{ minHeight: 120 }}>
+              <div className="tutor-bubble-header">
+                <div className="tutor-identity">
+                  <div className="tutor-avatar">🎓</div>
+                  <span className="tutor-name">Your tutor</span>
+                </div>
+              </div>
+              <p className="tutor-intro-text" style={{ fontStyle: "normal" }}>
+                <span className="streaming-dot">✦</span> Setting up your session...
+              </p>
             </div>
           )}
 
           {(practiceState === "question" || practiceState === "submitted") && practiceQuestion && (
             <div className="space-y-4">
-              <div className="rounded-2xl border border-[#E6D7C5] bg-white p-8">
-                <span className="text-[11px] font-semibold tracking-[0.08em] uppercase text-[#9CA3AF]">
-                  {TYPE_LABELS[practiceQuestion.type]}
-                </span>
-                <h2 className="mt-3 text-2xl font-bold text-[#5A3E36] leading-snug">
-                  {practiceQuestion.question}
-                </h2>
-                {practiceQuestion.context && (
-                  <div className="mt-5 rounded-xl border border-[#E6D7C5] bg-[#F8F7F4] p-4 text-sm overflow-x-auto">
-                    <pre className="font-mono whitespace-pre-wrap text-[#5A3E36]">{practiceQuestion.context}</pre>
+              <div className="tutor-bubble">
+                <div className="tutor-bubble-header">
+                  <div className="tutor-identity">
+                    <div className="tutor-avatar">🎓</div>
+                    <span className="tutor-name">Your tutor</span>
                   </div>
-                )}
+                  <span className="task-type-badge">{TYPE_LABELS[practiceQuestion.type]}</span>
+                </div>
+                <p className="tutor-intro-text">
+                  "{taskIndex === 0 ? practiceOpeningLine : getTaskIntro(practiceQuestion.type)}"
+                </p>
+                <div className="question-card">
+                  <p className="question-text">{practiceQuestion.question}</p>
+                  {practiceQuestion.context && (
+                    <div className="question-context">
+                      <span className="question-context-label">Reference</span>
+                      <pre><code>{practiceQuestion.context}</code></pre>
+                    </div>
+                  )}
+                </div>
               </div>
 
               {practiceState === "question" && (
-                <div className="rounded-2xl border border-[#E6D7C5] bg-white p-6">
+                <div className="answer-area">
+                  <span className="answer-label">Your answer</span>
                   <textarea
                     rows={4}
                     value={practiceAnswer}
                     onChange={(event) => setPracticeAnswer(event.target.value)}
-                    placeholder="Type your answer here..."
-                    className="w-full rounded-xl border border-[#E6D7C5] bg-[#F8F7F4] px-4 py-3 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-[#FF8C00]/25"
+                    placeholder="Type your answer here... (Ctrl + Enter to submit)"
+                    className="answer-textarea"
                     onKeyDown={(event) => {
                       if (event.key === "Enter" && event.ctrlKey) {
                         event.preventDefault()
@@ -898,64 +1042,70 @@ export default function Tutor() {
                     }}
                   />
                   {hint && (
-                    <div className="mt-4 rounded-xl border border-[#E6D7C5] bg-[#FFF4CC]/60 px-4 py-3">
-                      <p className="text-[11px] font-semibold tracking-[0.08em] uppercase text-[#6C4F3D] mb-1">Hint</p>
-                      <p className="text-sm text-[#5A3E36]">{hint}</p>
+                    <div className="hint-reveal">
+                      <div className="hint-badge">💡 Hint</div>
+                      <p>{hint}</p>
                     </div>
                   )}
-                  <div className="mt-4 flex items-center justify-between gap-3">
+                  <div className="answer-actions">
                     <button
                       type="button"
                       onClick={() => void requestHint()}
                       disabled={hintLoading || Boolean(hint)}
-                      className="h-10 px-4 rounded-xl border border-[#E6D7C5] bg-white text-sm font-semibold text-[#6C4F3D] disabled:opacity-60"
+                      className="hint-trigger"
                     >
-                      {hintLoading ? "..." : hint ? "Hint shown" : "Hint (-10 XP)"}
+                      💡 {hintLoading ? "..." : hint ? "Hint shown" : "Hint -10 XP"}
                     </button>
                     <button
                       type="button"
                       onClick={() => void submitPracticeAnswer()}
                       disabled={!practiceAnswer.trim() || practiceLoading}
-                      className="h-10 px-5 rounded-xl bg-[#FF8C00] text-white text-sm font-bold hover:bg-[#E67700] disabled:opacity-60"
+                      className="submit-answer-btn"
                     >
-                      {practiceLoading ? "Checking..." : "Submit answer →"}
+                      {practiceLoading ? "Checking..." : "Submit →"}
                     </button>
                   </div>
-                  <p className="mt-2 text-[11px] text-[#9CA3AF]">Ctrl + Enter to submit</p>
                 </div>
               )}
 
               {practiceState === "submitted" && (
-                <div className={`rounded-2xl border p-6 ${isCorrect ? "border-green-200 bg-green-50/70" : "border-orange-200 bg-orange-50/70"}`}>
-                  <div className="flex items-center gap-2 mb-3">
-                    <span className={`text-lg font-bold ${isCorrect ? "text-green-700" : "text-orange-700"}`}>
-                      {isCorrect ? "✓" : "✗"}
-                    </span>
-                    <p className={`font-bold ${isCorrect ? "text-green-700" : "text-orange-700"}`}>
-                      {isCorrect ? "Correct" : "Not quite"}
-                    </p>
-                    {xpAwarded > 0 && <p className="text-sm font-semibold text-[#B45309]">+{xpAwarded} XP</p>}
+                <div className={`feedback-bubble feedback-bubble--${feedbackVariant}`}>
+                  <div className="tutor-bubble-header">
+                    <div className="tutor-identity">
+                      <div className="tutor-avatar">🎓</div>
+                      <span className="tutor-name">Your tutor</span>
+                    </div>
                   </div>
-                  <LessonDoc content={feedback} />
+                  <div className="feedback-result-row">
+                    <div className="feedback-result-icon">{feedbackVariant === "correct" ? "✓" : feedbackVariant === "partial" ? "~" : "✗"}</div>
+                    <span className="feedback-result-label">{feedbackLabel}</span>
+                    {xpAwarded > 0 && <span className="feedback-xp-pill">+{xpAwarded} XP</span>}
+                  </div>
+                  <p className="feedback-text">
+                    {feedback}
+                    {consecutiveWrong >= 2 && feedbackVariant === "wrong"
+                      ? " Let me try a simpler angle on this."
+                      : ""}
+                  </p>
                   {correctAnswer && (
-                    <div className="mt-3 rounded-xl border border-[#E6D7C5] bg-white px-4 py-3">
-                      <p className="text-[11px] font-semibold tracking-[0.08em] uppercase text-[#9CA3AF] mb-1">Model answer</p>
-                      <p className="text-sm text-[#5A3E36]">{correctAnswer}</p>
+                    <div className="model-answer-block">
+                      <p className="model-answer-label">Model answer</p>
+                      <p className="model-answer-text">{correctAnswer}</p>
                     </div>
                   )}
                   {followUp && (
-                    <div className="mt-3 rounded-xl border border-[#E6D7C5] bg-white px-4 py-3">
-                      <p className="text-[11px] font-semibold tracking-[0.08em] uppercase text-[#9CA3AF] mb-1">Bonus question</p>
-                      <p className="text-sm text-[#5A3E36]">{followUp}</p>
+                    <div className="followup-block">
+                      <p className="followup-label">Bonus question</p>
+                      <p className="followup-text">{followUp}</p>
                     </div>
                   )}
                   <div className="mt-4 flex justify-end">
                     <button
                       type="button"
                       onClick={() => void goToNextPractice()}
-                      className="h-10 px-5 rounded-xl bg-[#FF8C00] text-white text-sm font-bold hover:bg-[#E67700]"
+                      className="next-question-btn"
                     >
-                      {taskIndex >= totalTasks - 1 ? "See results →" : "Next question →"}
+                      {taskIndex >= totalTasks - 1 ? "See your results →" : "Next question →"}
                     </button>
                   </div>
                 </div>
@@ -964,15 +1114,58 @@ export default function Tutor() {
           )}
 
           {practiceState === "complete" && (
-            <div className="rounded-2xl border border-[#E6D7C5] bg-white p-10 text-center">
-              <p className="text-5xl mb-3">🎓</p>
-              <h2 className="text-3xl font-extrabold text-[#5A3E36] mb-2">Practice complete</h2>
-              <p className="text-[#6C4F3D]">You solved {correctCount} of {totalTasks} tasks.</p>
-              <p className="text-[#B45309] font-bold mt-2">+{totalPracticeXp} XP earned</p>
+            <div className="results-wrapper">
+              <div className="tutor-bubble mb-6">
+                <div className="tutor-bubble-header">
+                  <div className="tutor-identity">
+                    <div className="tutor-avatar">🎓</div>
+                    <span className="tutor-name">Your tutor</span>
+                  </div>
+                </div>
+                <p className="tutor-intro-text" style={{ fontStyle: "normal" }}>
+                  "{debrief.subline}"
+                </p>
+              </div>
+              <div className="results-score-card">
+                <div className="results-score-display">
+                  <span className="results-score-number">{correctCount}</span>
+                  <span className="results-score-total">/ {totalTasks}</span>
+                </div>
+                <div
+                  className="results-grade-badge"
+                  data-grade={
+                    correctCount === totalTasks
+                      ? "perfect"
+                      : correctCount / totalTasks >= 0.75
+                        ? "strong"
+                        : correctCount / totalTasks >= 0.5
+                          ? "decent"
+                          : "needs-work"
+                  }
+                >
+                  {correctCount === totalTasks
+                    ? "Perfect"
+                    : correctCount / totalTasks >= 0.75
+                      ? "Strong"
+                      : correctCount / totalTasks >= 0.5
+                        ? "Decent"
+                        : "Needs work"}
+                </div>
+                <div className="results-xp-row">
+                  <span>⭐</span>
+                  <span className="results-xp-text">+{totalPracticeXp} XP earned this session</span>
+                </div>
+              </div>
+              {correctCount / totalTasks < 0.75 && (
+                <div className="results-suggestion">
+                  <div className="suggestion-label">Suggested next step</div>
+                  <p>Review the lecture, focusing on the worked example. Then come back and retry.</p>
+                </div>
+              )}
               <button
                 type="button"
-                onClick={() => navigate(`/dashboard/${encodeURIComponent(realSubjectName)}`)}
-                className="mt-6 h-11 px-6 rounded-xl bg-[#FF8C00] text-white text-sm font-bold hover:bg-[#E67700]"
+                onClick={handleReturnToRoadmap}
+                className="return-btn"
               >
                 Back to roadmap
               </button>
@@ -985,6 +1178,15 @@ export default function Tutor() {
             </div>
           )}
         </section>
+        {showDebrief && (
+          <div className="debrief-overlay">
+            <div className="debrief-card">
+              <p className="debrief-line">"{debrief.line}"</p>
+              <p className="debrief-subline">{debrief.subline}</p>
+              <div className="debrief-xp">+{totalPracticeXp} XP</div>
+            </div>
+          </div>
+        )}
       </main>
     )
   }

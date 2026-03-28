@@ -11,6 +11,7 @@ type SubjectCard = {
   nodes: number
   progressLabel: string
   examDate?: string
+  tutorNote?: string
 }
 
 type StudyPathApiResponse = {
@@ -89,6 +90,7 @@ export default function Dashboard() {
   }, [loadStudyPath])
 
   const subjects = useMemo<SubjectCard[]>(() => {
+    const tutorNotes = JSON.parse(localStorage.getItem("tutorNotesBySubject") ?? "{}") as Record<string, string>
     const grouped = new Map<string, RoadmapNode[]>()
     roadmap.forEach((node) => {
       const subjectName = node.subject?.trim() || "General"
@@ -128,6 +130,7 @@ export default function Dashboard() {
         nodes: totalNodes,
         progressLabel: `${completedNodes}/${totalNodes} nodes`,
         examDate: examDates[0],
+        tutorNote: tutorNotes[name.toLowerCase()],
       })
     })
 
@@ -262,6 +265,12 @@ export default function Dashboard() {
                       {subject.progressLabel}
                     </span>
                   </div>
+                  {subject.tutorNote && (
+                    <p className="tutor-note mt-3">
+                      <span className="tutor-note-icon">🎓</span>
+                      "{subject.tutorNote}"
+                    </p>
+                  )}
                 </button>
               )
             })}

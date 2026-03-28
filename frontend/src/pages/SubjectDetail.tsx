@@ -202,6 +202,19 @@ export default function SubjectDetail() {
       ? Math.max(...subjectNodes.map((node) => node.weekNumber ?? 1))
       : 1)
 
+  const tutorReturnLine = useMemo(() => {
+    const name = studyMeta?.name ?? "there"
+    const examDate = studyMeta?.examDate
+    if (examDate) {
+      const examMs = new Date(examDate).getTime()
+      if (!Number.isNaN(examMs)) {
+        const daysLeft = Math.max(0, Math.ceil((examMs - Date.now()) / 86400000))
+        return `Welcome back, ${name}. ${daysLeft} day${daysLeft === 1 ? "" : "s"} to your exam. Here's where to focus.`
+      }
+    }
+    return `Welcome back, ${name}. Here's where to focus next.`
+  }, [studyMeta?.examDate, studyMeta?.name])
+
   const Markdown = ({ content, className }: { content: string; className?: string }) => (
     <ReactMarkdown
       className={className}
@@ -230,9 +243,7 @@ export default function SubjectDetail() {
           <h1 className="mt-3 text-[48px] leading-[1.1] font-sans font-extrabold">
             {studyMeta?.name ? `Welcome back, ${studyMeta.name}` : "Welcome back"}
           </h1>
-          <p className="mt-2 text-[16px] text-muted-foreground">
-            Your study path is ready. Keep the streak going.
-          </p>
+          <p className="mt-2 text-[16px] text-muted-foreground">{tutorReturnLine}</p>
         </div>
         {studyMeta?.streak !== undefined && (
           <div className="h-9 px-4 rounded-full bg-white/80 border border-[#E6D7C5] flex items-center gap-2 shadow-sm">
