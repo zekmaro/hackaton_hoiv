@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useLocation, useNavigate, useParams } from "react-router-dom"
 import ReactMarkdown from "react-markdown"
+import remarkGfm from "remark-gfm"
+import remarkMath from "remark-math"
+import rehypeKatex from "rehype-katex"
 import type {
   AgentActivity,
   OnboardChatMessage,
@@ -58,6 +61,63 @@ function phaseFromMarker(marker: string | null): LessonPhase | null {
   if (marker === "challenge_passed") return "complete"
   if (marker === "complete") return "complete"
   return null
+}
+
+// ─── Markdown message renderer ────────────────────────────────────────────────
+
+function TutorMessage({ content }: { content: string }) {
+  return (
+    <ReactMarkdown
+      remarkPlugins={[remarkGfm, remarkMath]}
+      rehypePlugins={[rehypeKatex]}
+      components={{
+        p: ({ children }) => <p className="mb-3 last:mb-0 leading-relaxed">{children}</p>,
+        strong: ({ children }) => <strong className="font-bold text-foreground">{children}</strong>,
+        em: ({ children }) => <em className="italic">{children}</em>,
+        code: ({ children, className }) => {
+          const isBlock = className?.includes("language-")
+          return isBlock ? (
+            <code className={className}>{children}</code>
+          ) : (
+            <code className="bg-[#F1F5F9] text-[#0F172A] px-1.5 py-0.5 rounded text-[0.85em] font-mono">
+              {children}
+            </code>
+          )
+        },
+        pre: ({ children }) => (
+          <pre className="bg-[#F1F5F9] rounded-xl p-4 overflow-x-auto text-sm font-mono my-3 text-[#0F172A]">
+            {children}
+          </pre>
+        ),
+        ul: ({ children }) => <ul className="list-disc pl-5 mb-3 space-y-1">{children}</ul>,
+        ol: ({ children }) => <ol className="list-decimal pl-5 mb-3 space-y-1">{children}</ol>,
+        li: ({ children }) => <li className="leading-relaxed">{children}</li>,
+        h1: ({ children }) => <h1 className="text-lg font-bold mb-2 mt-4">{children}</h1>,
+        h2: ({ children }) => <h2 className="text-base font-bold mb-2 mt-3">{children}</h2>,
+        h3: ({ children }) => <h3 className="text-sm font-bold mb-1 mt-2">{children}</h3>,
+        blockquote: ({ children }) => (
+          <blockquote className="border-l-4 border-[#FF8C00]/40 pl-4 italic text-muted-foreground my-3">
+            {children}
+          </blockquote>
+        ),
+        table: ({ children }) => (
+          <div className="overflow-x-auto my-3">
+            <table className="w-full border-collapse text-sm">{children}</table>
+          </div>
+        ),
+        thead: ({ children }) => <thead className="bg-[#F1F5F9]">{children}</thead>,
+        th: ({ children }) => (
+          <th className="border border-[#E6D7C5] px-3 py-2 text-left font-semibold">{children}</th>
+        ),
+        td: ({ children }) => (
+          <td className="border border-[#E6D7C5] px-3 py-2">{children}</td>
+        ),
+        hr: () => <hr className="border-[#E6D7C5] my-4" />,
+      }}
+    >
+      {content}
+    </ReactMarkdown>
+  )
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -344,21 +404,15 @@ export default function Tutor() {
                   key={`${message.role}-${index}`}
                   className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}
                 >
-                  <div
-                    className={`max-w-[82%] rounded-2xl px-4 py-3 text-sm leading-relaxed shadow-sm ${
-                      message.role === "user"
-                        ? "bg-[#FF8C00] text-white"
-                        : "bg-white/90 text-foreground border border-[#E6D7C5]"
-                    }`}
-                  >
-                    {message.role === "assistant" ? (
-                      <ReactMarkdown className="prose prose-sm max-w-none prose-p:my-1 prose-pre:bg-[#F1F5F9] prose-pre:text-xs">
-                        {message.content}
-                      </ReactMarkdown>
-                    ) : (
-                      message.content
-                    )}
-                  </div>
+                  {message.role === "assistant" ? (
+                    <div className="w-full rounded-2xl border border-[#E6D7C5] bg-white/95 px-5 py-4 text-sm text-foreground shadow-sm">
+                      <TutorMessage content={message.content} />
+                    </div>
+                  ) : (
+                    <div className="max-w-[75%] rounded-2xl bg-[#FF8C00] px-4 py-3 text-sm text-white shadow-sm leading-relaxed">
+                      {message.content}
+                    </div>
+                  )}
                 </div>
               ))}
 
