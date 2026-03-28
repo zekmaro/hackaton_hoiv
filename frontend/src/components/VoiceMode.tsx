@@ -21,7 +21,8 @@ type ChatMessage = {
   content: string
 }
 
-type SpeechRecognitionEventLike = { results: ArrayLike<ArrayLike<{ transcript: string }>> }
+type SpeechRecognitionResult = { isFinal: boolean; [index: number]: { transcript: string } }
+type SpeechRecognitionEventLike = { results: ArrayLike<SpeechRecognitionResult>; resultIndex: number }
 type SpeechRecognitionInstance = {
   lang: string; interimResults: boolean; continuous: boolean
   onresult: ((e: SpeechRecognitionEventLike) => void) | null
@@ -181,16 +182,17 @@ export default function VoiceMode({
   weakTopics = [], lastSessionNote,
 }: VoiceModeProps) {
 
-  const [orbState, setOrbState]       = useState<OrbState>("idle")
-  const [statusText, setStatusText]   = useState("Starting…")
-  const [chatHistory, setChatHistory] = useState<ChatMessage[]>([])
-  const [revealedText, setRevealedText] = useState("")
-  const [isStreaming, setIsStreaming]  = useState(false)
-  const [showInput, setShowInput]     = useState(false)
-  const [inputText, setInputText]     = useState("")
-  const [muted, setMuted]             = useState(false)
-  const [error, setError]             = useState<string | null>(null)
-  const [totalXp, setTotalXp]         = useState(0)
+  const [orbState, setOrbState]             = useState<OrbState>("idle")
+  const [statusText, setStatusText]         = useState("Starting…")
+  const [chatHistory, setChatHistory]       = useState<ChatMessage[]>([])
+  const [revealedText, setRevealedText]     = useState("")
+  const [interimTranscript, setInterimTranscript] = useState("")
+  const [isStreaming, setIsStreaming]       = useState(false)
+  const [showInput, setShowInput]           = useState(false)
+  const [inputText, setInputText]           = useState("")
+  const [muted, setMuted]                   = useState(false)
+  const [error, setError]                   = useState<string | null>(null)
+  const [totalXp, setTotalXp]               = useState(0)
 
   const scrollRef            = useRef<HTMLDivElement>(null)
   const inputRef             = useRef<HTMLTextAreaElement>(null)
@@ -209,6 +211,7 @@ export default function VoiceMode({
   const revealedTextRef      = useRef("")
   // text to commit to history once TTS finishes
   const pendingCommitRef     = useRef<{ id: string; content: string } | null>(null)
+  const interimTranscriptRef = useRef("")
 
   const resolveUrl = useCallback(
     (path: string) => apiBase.endsWith("/api") ? `${apiBase}${path}` : `${apiBase}/api${path}`,
@@ -251,22 +254,48 @@ export default function VoiceMode({
     ) as SpeechRecognitionConstructor | undefined
     if (!Ctor) { setOrbState("listening"); setStatusText("Tap mic to speak"); return }
     const r = new Ctor()
-    r.lang = "en-US"; r.interimResults = false; r.continuous = false
+    r.lang = "en-US"; r.interimResults = true; r.continuous = false
     recognitionRef.current = r
+    interimTranscriptRef.current = ""
+    setInterimTranscript("")
+
     r.onresult = (e) => {
-      const text = e.results[0]?.[0]?.transcript ?? ""
-      if (text.trim()) { recognitionRef.current = null; sendMessageRef.current(text.trim()) }
+      let finalText = ""
+      let interimText = ""
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        const t = e.results[i][0]?.transcript ?? ""
+        if (e.results[i].isFinal) finalText += t
+        else interimText += t
+      }
+      if (finalText.trim()) {
+        recognitionRef.current = null
+        interimTranscriptRef.current = ""
+        setInterimTranscript("")
+        sendMessageRef.current(finalText.trim())
+      } else if (interimText) {
+        interimTranscriptRef.current = interimText
+        setInterimTranscript(interimText)
+      }
     }
     r.onend = () => {
-      // If recognition ended without a result (no speech / timeout), reset to idle
       if (recognitionRef.current === r) {
+        // Ended without a final result — if we have interim text, send it; else reset
+        const pending = interimTranscriptRef.current.trim()
         recognitionRef.current = null
-        setOrbState("idle")
-        setStatusText("Tap mic to speak")
+        interimTranscriptRef.current = ""
+        setInterimTranscript("")
+        if (pending) {
+          sendMessageRef.current(pending)
+        } else {
+          setOrbState("idle")
+          setStatusText("Tap mic to speak")
+        }
       }
     }
     r.onerror = () => {
       recognitionRef.current = null
+      interimTranscriptRef.current = ""
+      setInterimTranscript("")
       setOrbState("idle")
       setStatusText("Tap mic to speak")
     }
@@ -586,11 +615,18 @@ export default function VoiceMode({
               <p className="text-slate-600 text-sm">Starting up…</p>
             )}
 
-            {/* Listening nudge */}
+            {/* Listening — show what's being heard, or a nudge */}
             {orbState === "listening" && (
-              <p className="text-green-400/60 text-[13px] font-medium" style={{ animation: "orb-breathe 2s ease-in-out infinite" }}>
-                Your turn — speak or tap mic
-              </p>
+              interimTranscript ? (
+                <div className="max-w-md text-center">
+                  <p className="text-white/80 text-[15px] leading-relaxed italic">"{interimTranscript}"</p>
+                  <p className="text-green-400/50 text-[11px] mt-2 uppercase tracking-widest">Tap mic to send</p>
+                </div>
+              ) : (
+                <p className="text-green-400/60 text-[13px] font-medium" style={{ animation: "orb-breathe 2s ease-in-out infinite" }}>
+                  Speak — tap mic when done
+                </p>
+              )
             )}
           </div>
 
@@ -656,11 +692,18 @@ export default function VoiceMode({
               if (orbState === "speaking") handleInterrupt()
               else if (orbState === "thinking") handleStop()
               else if (orbState === "listening") {
-                // Tap again to cancel mic
+                // Tap to finish — send whatever was captured, or cancel if nothing
+                const pending = interimTranscriptRef.current.trim()
                 recognitionRef.current?.stop()
                 recognitionRef.current = null
-                setOrbState("idle")
-                setStatusText("Tap mic to speak")
+                interimTranscriptRef.current = ""
+                setInterimTranscript("")
+                if (pending) {
+                  void sendMessage(pending)
+                } else {
+                  setOrbState("idle")
+                  setStatusText("Tap mic to speak")
+                }
               }
               else startListening()
             }}
