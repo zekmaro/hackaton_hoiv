@@ -245,17 +245,27 @@ export default function SubjectDetail() {
             </p>
             {nextNode && (
               <>
-                <div className="flex items-center gap-2">
-                  <span className="text-xl" style={{ color: accent }}>
+                <div className="mb-5">
+                  <h2 className="text-[38px] leading-[1.05] font-sans font-extrabold text-foreground">
+                    {subjectName}
+                  </h2>
+                  <div className="mt-3 rounded-xl border border-[#E6D7C5] bg-white/70 px-3 py-3">
+                    <p className="text-[11px] font-semibold tracking-[0.07em] uppercase text-muted-foreground mb-1">
+                      Next topic
+                    </p>
+                    <p className="text-[16px] leading-6 font-sans font-semibold text-foreground">
+                      {nextNode.topic}
+                    </p>
+                  </div>
+                </div>
+                <div className="mb-6 flex items-center gap-2 text-[14px] text-muted-foreground">
+                  <span className="text-lg" style={{ color: accent }}>
                     {icon}
                   </span>
-                  <h2 className="text-[22px] font-sans font-bold text-foreground">
-                    {subjectName} — {nextNode.topic}
-                  </h2>
+                  <span>
+                    {focusNodes.length} focus {focusNodes.length === 1 ? "block" : "blocks"}
+                  </span>
                 </div>
-                <p className="text-[14px] text-muted-foreground mb-6">
-                  {focusNodes.length} focus {focusNodes.length === 1 ? "block" : "blocks"}
-                </p>
               </>
             )}
 
