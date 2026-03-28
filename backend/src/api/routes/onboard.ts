@@ -56,6 +56,7 @@ const completeSchema = z.object({
       if (val.includes('theor')) return 'theory'
       return 'mixed'
     }),
+    focusTopic: z.string().optional(),
   }),
   syllabus: z.string().optional(),
 })

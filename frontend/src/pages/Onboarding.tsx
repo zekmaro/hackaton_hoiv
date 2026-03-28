@@ -293,9 +293,10 @@ export default function Onboarding() {
         {
           name: form.subject,
           level: form.level === "high_school" ? "high school" : form.level === "self_learning" ? "self-learning" : "university",
-          currentStruggles: [form.struggles, form.focusTopic ? `wants to start with: ${form.focusTopic}` : ""].filter(Boolean).join("; ") || "general understanding",
+          currentStruggles: form.struggles.trim() || "general understanding",
         },
       ],
+      focusTopic: form.focusTopic.trim() || undefined,
       goals:
         form.goal === "pass_exam" ? "Pass an exam"
         : form.goal === "deep_understanding" ? "Deep understanding of the subject"

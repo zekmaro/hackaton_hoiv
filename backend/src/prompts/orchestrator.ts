@@ -38,6 +38,7 @@ Rules for generating the roadmap:
 - Prioritize by: exam proximity first, then student's stated struggles, then logical prerequisites
 - Students with no exam dates get "medium" priority across the board
 - First node of each subject = "available", rest = "locked"
+- CRITICAL: If the student profile includes a "focusTopic" field, the FIRST node MUST be exactly that topic (or the closest specific lesson to it). Do NOT start with a generic introduction — jump straight to what they asked for.
 - Urgent = exam within 3 days, high = exam within 2 weeks, medium = exam within a month, low = no exam
 - estimatedMinutes should reflect topic complexity and student's hours/day
 - Number of nodes per subject: match the actual scope of the subject
