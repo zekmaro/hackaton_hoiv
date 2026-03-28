@@ -220,39 +220,77 @@ export default function Tutor() {
           sessionHistory: messages.map((m) => ({ role: m.role, content: m.content })),
         }
 
-        const response = await fetch(resolveApiUrl("/tutor/message"), {
+        const response = await fetch(resolveApiUrl("/tutor/message/stream"), {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
         })
 
         if (!response.ok) throw new Error("Failed to reach the tutor service.")
+        if (!response.body) throw new Error("No response stream.")
 
-        const data = (await response.json()) as TutorMessageResponse
+        // Add empty assistant message placeholder
+        setMessages((prev) => [...prev, { role: "assistant", content: "" }])
 
-        // Parse phase markers out of Claude's reply before showing to student
-        const { clean, phase } = parsePhaseMarker(data.reply)
+        const reader = response.body.getReader()
+        const decoder = new TextDecoder()
+        let buffer = ""
+        let fullText = ""
 
-        setMessages((prev) => [...prev, { role: "assistant", content: clean }])
+        while (true) {
+          const { done, value } = await reader.read()
+          if (done) break
 
-        // Update lesson phase
-        const newPhase = phaseFromMarker(phase)
-        if (newPhase) {
-          setCurrentPhase(newPhase)
-          if (newPhase === "complete") {
-            setLessonComplete(true)
+          buffer += decoder.decode(value, { stream: true })
+
+          // SSE lines end with \n\n — process complete events
+          const parts = buffer.split("\n\n")
+          buffer = parts.pop() ?? ""
+
+          for (const part of parts) {
+            const line = part.trim()
+            if (!line.startsWith("data: ")) continue
+            const json = line.slice(6)
+            let event: Record<string, unknown>
+            try { event = JSON.parse(json) } catch { continue }
+
+            if (event.type === "chunk") {
+              fullText += event.text as string
+              // Strip phase markers from display text as we build it
+              const { clean } = parsePhaseMarker(fullText)
+              setMessages((prev) => {
+                const next = [...prev]
+                next[next.length - 1] = { role: "assistant", content: clean }
+                return next
+              })
+            } else if (event.type === "clear") {
+              fullText = ""
+              setMessages((prev) => {
+                const next = [...prev]
+                next[next.length - 1] = { role: "assistant", content: "" }
+                return next
+              })
+            } else if (event.type === "done") {
+              // Detect phase from completed text
+              const { phase } = parsePhaseMarker(fullText)
+              const newPhase = phaseFromMarker(phase)
+              if (newPhase) {
+                setCurrentPhase(newPhase)
+                if (newPhase === "complete") setLessonComplete(true)
+              }
+
+              const activity = event.agentActivity as AgentActivity[] | undefined
+              if (activity?.length) {
+                setAgentActivity((prev) => [...prev, ...activity])
+              }
+
+              const xp = event.xpGained as number | undefined
+              if (xp && xp > 0) {
+                setTotalXp((prev) => prev + xp)
+                setLastXp(xp)
+              }
+            }
           }
-        }
-
-        // Agent activity sidebar
-        if (data.agentActivity?.length) {
-          setAgentActivity((prev) => [...prev, ...data.agentActivity])
-        }
-
-        // XP
-        if (typeof data.xpGained === "number" && data.xpGained > 0) {
-          setTotalXp((prev) => prev + data.xpGained)
-          setLastXp(data.xpGained)
         }
       } catch (err) {
         setError(err instanceof Error ? err.message : "Something went wrong.")
