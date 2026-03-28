@@ -283,7 +283,17 @@ export default function Tutor() {
       const newPhase = phaseFromMarker(finalPhase)
       if (newPhase) {
         setCurrentPhase(newPhase)
-        if (newPhase === "complete") setLessonComplete(true)
+        if (newPhase === "complete") {
+          setLessonComplete(true)
+          // Mark node complete in DB — unlocks next node and awards XP
+          if (nodeId && studentId) {
+            void fetch(resolveApiUrl("/lesson/complete"), {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ nodeId, studentId, score: 8 }),
+            })
+          }
+        }
         // Record where the next phase's messages start
         phaseStartIndex.current[newPhase] = committedIndex + 1
       }
