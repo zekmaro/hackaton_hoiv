@@ -40,7 +40,7 @@ export async function runTutorAgent(
   while (true) {
     const response = await client.messages.create({
       model: 'claude-sonnet-4-6',
-      max_tokens: 1024,
+      max_tokens: 4096,
       system: getTutorPrompt(subject, studentId, mode, topic),
       tools: tutorTools,
       messages,
@@ -150,7 +150,7 @@ export async function runTutorAgentStream(
     // Use streaming for every call — tool-use calls produce no text so nothing leaks
     const stream = client.messages.stream({
       model: 'claude-sonnet-4-6',
-      max_tokens: 2048,
+      max_tokens: 4096,
       system: getTutorPrompt(subject, studentId, mode, topic),
       tools: tutorTools,
       messages,
