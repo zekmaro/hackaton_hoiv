@@ -1,15 +1,37 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { useNavigate, useParams } from "react-router-dom"
 import { SUBJECT_COLORS, SUBJECT_ICONS } from "../lib/subject-colors"
-import type { RoadmapNode, StudyPathResponse } from "@shared/types"
+import type { RoadmapNode } from "@shared/types"
 
 type RoadmapStatusLabel = "In progress" | "Up next" | "Locked" | "Completed"
 
-const statusLabelMap: Record<RoadmapNode["status"], RoadmapStatusLabel> = {
-  in_progress: "In progress",
-  available: "Up next",
-  locked: "Locked",
-  completed: "Completed",
+type RoadmapNodeWithLesson = RoadmapNode & {
+  title?: string
+  description?: string
+  weekNumber?: number
+  orderInWeek?: number
+  difficulty?: "foundation" | "core" | "advanced"
+}
+
+const getStatusLabel = (status: string): RoadmapStatusLabel => {
+  if (status === "in_progress") return "In progress"
+  if (status === "available" || status === "up_next") return "Up next"
+  if (status === "completed") return "Completed"
+  return "Locked"
+}
+
+type SubjectDetailResponse = {
+  subject: string
+  nodes: RoadmapNodeWithLesson[]
+  byWeek?: Record<string, RoadmapNodeWithLesson[]>
+  currentWeek?: number
+  totalWeeks?: number
+  xp?: number
+  streak?: number
+  name?: string
+  examDate?: string | null
+  badges?: { id: string; name: string; icon: string }[]
+  studyHoursPerDay?: number
 }
 
 const statusStyles: Record<RoadmapStatusLabel, string> = {
@@ -24,18 +46,17 @@ export default function SubjectDetail() {
   const navigate = useNavigate()
   const apiBase = import.meta.env.VITE_API_URL ?? ""
   const studentId = localStorage.getItem("studentId")
-  const studentName = localStorage.getItem("studentName") ?? ""
-  const subjectKey = (subject ?? "math").toLowerCase()
-  const subjectName = useMemo(() => {
-    if (!subject) return "Math"
-    return subject.charAt(0).toUpperCase() + subject.slice(1)
-  }, [subject])
+  const decodedSubject = useMemo(() => decodeURIComponent(subject ?? ""), [subject])
+  const subjectKey = decodedSubject.toLowerCase()
+  const [subjectName, setSubjectName] = useState(() =>
+    decodedSubject ? decodedSubject.charAt(0).toUpperCase() + decodedSubject.slice(1) : "Math"
+  )
 
   const accent = SUBJECT_COLORS[subjectKey] ?? SUBJECT_COLORS.default
   const icon = SUBJECT_ICONS[subjectKey] ?? SUBJECT_ICONS.default
 
-  const [roadmap, setRoadmap] = useState<RoadmapNode[]>([])
-  const [studyMeta, setStudyMeta] = useState<StudyPathResponse | null>(null)
+  const [roadmap, setRoadmap] = useState<RoadmapNodeWithLesson[]>([])
+  const [studyMeta, setStudyMeta] = useState<SubjectDetailResponse | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -47,62 +68,105 @@ export default function SubjectDetail() {
   )
 
   const loadStudyPath = useCallback(async () => {
-    const cachedStudyPath = localStorage.getItem("studyPath")
-    if (cachedStudyPath) {
-      try {
-        const parsed = JSON.parse(cachedStudyPath) as RoadmapNode[]
-        if (Array.isArray(parsed)) {
-          setRoadmap(parsed)
-        }
-      } catch {
-        // Ignore invalid cache
-      }
-    }
-
     if (!apiBase || !studentId) {
-      if (!cachedStudyPath) {
-        setError("Study path data is not available yet.")
-      }
+      setError("Study path data is not available yet.")
       return
     }
 
     setLoading(true)
     setError(null)
     try {
-      const response = await fetch(resolveApiUrl(`/study-path/${studentId}`))
+      const response = await fetch(
+        resolveApiUrl(`/study-path/${studentId}/${encodeURIComponent(decodedSubject)}`)
+      )
       if (!response.ok) throw new Error("Failed to load your study path.")
-      const data = (await response.json()) as StudyPathResponse
-      if (Array.isArray(data.studyPath)) {
-        setRoadmap(data.studyPath)
-        localStorage.setItem("studyPath", JSON.stringify(data.studyPath))
+      const data = (await response.json()) as SubjectDetailResponse
+      if (Array.isArray(data.nodes)) {
+        setRoadmap(data.nodes)
+        const existing = JSON.parse(localStorage.getItem("studyPath") ?? "[]") as RoadmapNode[]
+        const merged = [
+          ...existing.filter((node) => node.subject.toLowerCase() !== data.subject.toLowerCase()),
+          ...data.nodes,
+        ]
+        localStorage.setItem("studyPath", JSON.stringify(merged))
       }
       setStudyMeta(data)
-    } catch (err) {
-      if (!cachedStudyPath) {
-        setError(err instanceof Error ? err.message : "Something went wrong.")
+      if (data.subject) {
+        setSubjectName(data.subject)
       }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Something went wrong.")
     } finally {
       setLoading(false)
     }
-  }, [apiBase, studentId, resolveApiUrl])
+  }, [apiBase, studentId, resolveApiUrl, decodedSubject])
 
   useEffect(() => {
     void loadStudyPath()
   }, [loadStudyPath])
 
-  const subjectNodes = useMemo(
-    () => roadmap.filter((node) => node.subject.toLowerCase() === subjectKey),
-    [roadmap, subjectKey]
+  useEffect(() => {
+    if (decodedSubject) {
+      setSubjectName(decodedSubject.charAt(0).toUpperCase() + decodedSubject.slice(1))
+    }
+  }, [decodedSubject])
+
+  const normalizeSubject = useCallback(
+    (value: string) => value.toLowerCase().replace(/\s+/g, "-"),
+    []
   )
 
-  const completedCount = subjectNodes.filter((node) => node.status === "completed").length
+  const subjectNodes = useMemo(
+    () =>
+      roadmap.filter(
+        (node) =>
+          normalizeSubject(node.subject) === normalizeSubject(subjectKey)
+      ),
+    [roadmap, subjectKey, normalizeSubject]
+  )
+
+  const nodesByWeek = useMemo(() => {
+    if (studyMeta?.byWeek) {
+      const entries = Object.entries(studyMeta.byWeek)
+      return entries
+        .map(([week, nodes]) => [Number(week), nodes] as [number, RoadmapNodeWithLesson[]])
+        .sort(([a], [b]) => a - b)
+    }
+    const map = new Map<number, RoadmapNodeWithLesson[]>()
+    subjectNodes.forEach((node) => {
+      const week = node.weekNumber ?? 1
+      const list = map.get(week)
+      if (list) {
+        list.push(node)
+      } else {
+        map.set(week, [node])
+      }
+    })
+    map.forEach((nodes) => {
+      nodes.sort((a, b) => (a.orderInWeek ?? 0) - (b.orderInWeek ?? 0))
+    })
+    return [...map.entries()].sort(([a], [b]) => a - b)
+  }, [subjectNodes, studyMeta])
+
   const totalCount = subjectNodes.length
   const focusNodes = subjectNodes.filter(
-    (node) => node.status === "available" || node.status === "in_progress"
+    (node) =>
+      node.status === "available" || node.status === "up_next" || node.status === "in_progress"
   )
   const nextNode =
     subjectNodes.find((node) => node.status === "in_progress") ??
-    subjectNodes.find((node) => node.status === "available")
+    subjectNodes.find((node) => node.status === "available" || node.status === "up_next")
+  const currentWeek =
+    studyMeta?.currentWeek ??
+    nextNode?.weekNumber ??
+    subjectNodes.find((node) => node.status === "in_progress")?.weekNumber ??
+    subjectNodes[0]?.weekNumber ??
+    1
+  const totalWeeks =
+    studyMeta?.totalWeeks ??
+    (subjectNodes.length > 0
+      ? Math.max(...subjectNodes.map((node) => node.weekNumber ?? 1))
+      : 1)
 
   return (
     <main className="min-h-screen bg-background text-foreground px-8 md:px-12 py-12 font-sans">
@@ -116,7 +180,7 @@ export default function SubjectDetail() {
             ← Back to subjects
           </button>
           <h1 className="mt-3 text-[48px] leading-[1.1] font-sans font-extrabold">
-            {studentName ? `Welcome back, ${studentName}` : "Welcome back"}
+            {studyMeta?.name ? `Welcome back, ${studyMeta.name}` : "Welcome back"}
           </h1>
           <p className="mt-2 text-[16px] text-muted-foreground">
             Your study path is ready. Keep the streak going.
@@ -152,13 +216,13 @@ export default function SubjectDetail() {
               </>
             )}
 
-            {studyMeta?.xp !== undefined && studyMeta?.level !== undefined && (
+            {studyMeta?.xp !== undefined && (
               <>
                 <p className="text-[11px] font-semibold tracking-[0.08em] uppercase text-muted-foreground mb-2">
                   XP
                 </p>
                 <p className="text-[13px] text-muted-foreground">
-                  {studyMeta.xp} XP • Level {studyMeta.level}
+                  {studyMeta.xp} XP
                 </p>
               </>
             )}
@@ -191,7 +255,7 @@ export default function SubjectDetail() {
               </h2>
               {totalCount > 0 && (
                 <span className="text-[14px] text-muted-foreground">
-                  {completedCount} / {totalCount} completed
+                  Week {currentWeek} of {totalWeeks}
                 </span>
               )}
             </div>
@@ -216,16 +280,13 @@ export default function SubjectDetail() {
 
             {!loading && !error && subjectNodes.length > 0 && (
               <div className="grid grid-cols-3 gap-3 max-[700px]:grid-cols-2">
-                {subjectNodes.map((node) => {
-                  const statusLabel = statusLabelMap[node.status]
+                {(nodesByWeek.find(([week]) => week === currentWeek)?.[1] ?? subjectNodes).map(
+                  (node) => {
+                  const statusLabel = getStatusLabel(node.status)
                   const locked = node.status === "locked"
                   const onClick = () => {
                     if (locked) return
-                    if (node.status === "completed") {
-                      navigate(`/tutor/${subjectKey}?mode=review&topic=${encodeURIComponent(node.topic)}`)
-                      return
-                    }
-                    navigate(`/tutor/${subjectKey}?mode=sprint&duration=25&topic=${encodeURIComponent(node.topic)}`)
+                    navigate(`/lesson/${encodeURIComponent(node.id)}`)
                   }
 
                   return (
@@ -234,14 +295,19 @@ export default function SubjectDetail() {
                       type="button"
                       onClick={onClick}
                       title={locked ? "Complete previous nodes first" : ""}
-                      className={`roadmap-node ${locked ? "locked" : ""} text-left rounded-xl border border-[#E6D7C5] bg-white/80 p-4`}
+                      className={`roadmap-node roadmap-node--${node.status} ${locked ? "roadmap-node--locked" : ""} text-left rounded-xl border border-[#E6D7C5] bg-white/80 p-4`}
                     >
                       <p className="text-[11px] font-semibold tracking-[0.07em] uppercase text-muted-foreground mb-2">
-                        {node.subject}
+                        {node.subject} — {node.topic}
                       </p>
                       <h3 className="text-[18px] font-sans font-bold text-foreground mb-3">
-                        {node.topic}
+                        {node.title ?? node.topic}
                       </h3>
+                      {node.description && (
+                        <p className="text-[13px] text-muted-foreground mb-3">
+                          {node.description}
+                        </p>
+                      )}
                       <span
                         className={`inline-flex h-6 items-center rounded-full border px-3 text-[12px] font-medium ${
                           statusStyles[statusLabel]
@@ -249,6 +315,11 @@ export default function SubjectDetail() {
                       >
                         {statusLabel}
                       </span>
+                      {!locked && (
+                        <div className="node-hover-overlay">
+                          <span>Start lesson →</span>
+                        </div>
+                      )}
                     </button>
                   )
                 })}
@@ -269,9 +340,7 @@ export default function SubjectDetail() {
               </div>
               <button
                 type="button"
-                onClick={() =>
-                  navigate(`/tutor/${subjectKey}?mode=sprint&duration=25&topic=${encodeURIComponent(nextNode.topic)}`)
-                }
+                onClick={() => navigate(`/lesson/${encodeURIComponent(nextNode.id)}`)}
                 className="h-12 px-7 rounded-[10px] bg-[#FF8C00] text-white text-[15px] font-sans font-bold hover:bg-[#e07b00] hover:-translate-y-0.5 hover:shadow-[0_6px_18px_rgba(255,140,0,0.35)] transition-all"
               >
                 Start now

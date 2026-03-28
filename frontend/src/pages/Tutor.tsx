@@ -1,13 +1,38 @@
-import { useCallback, useMemo, useState } from "react"
-import { useLocation, useParams } from "react-router-dom"
-import type { AgentActivity, OnboardChatMessage, TutorMessageRequest, TutorMessageResponse } from "@shared/types"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useLocation, useNavigate, useParams } from "react-router-dom"
+import type {
+  AgentActivity,
+  OnboardChatMessage,
+  RoadmapNode,
+  TutorMessageRequest,
+  TutorMessageResponse,
+} from "@shared/types"
+
+type SpeechRecognitionEventLike = {
+  results: ArrayLike<ArrayLike<{ transcript: string }>>
+}
+
+type SpeechRecognitionInstance = {
+  lang: string
+  interimResults: boolean
+  maxAlternatives: number
+  onresult: ((event: SpeechRecognitionEventLike) => void) | null
+  onend: (() => void) | null
+  onerror: (() => void) | null
+  start: () => void
+  stop: () => void
+}
+
+type SpeechRecognitionConstructor = new () => SpeechRecognitionInstance
 
 export default function Tutor() {
   const { subject } = useParams<{ subject: string }>()
   const location = useLocation()
+  const navigate = useNavigate()
   const apiBase = import.meta.env.VITE_API_URL ?? ""
   const studentId = localStorage.getItem("studentId")
-  const title = useMemo(() => subject ?? "general", [subject])
+  const decodedSubject = useMemo(() => decodeURIComponent(subject ?? ""), [subject])
+  const title = useMemo(() => decodedSubject || "general", [decodedSubject])
   const searchParams = useMemo(() => new URLSearchParams(location.search), [location.search])
   const topic = searchParams.get("topic") ?? ""
   const mode = searchParams.get("mode") ?? "sprint"
@@ -17,6 +42,11 @@ export default function Tutor() {
   const [input, setInput] = useState("")
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [totalXp, setTotalXp] = useState(0)
+  const [lastXp, setLastXp] = useState<number | null>(null)
+  const [listening, setListening] = useState(false)
+  const recognitionRef = useRef<SpeechRecognitionInstance | null>(null)
+  const autoSentRef = useRef(false)
 
   const resolveApiUrl = useCallback(
     (path: string) => {
@@ -50,9 +80,15 @@ export default function Tutor() {
       setError(null)
 
       try {
+        const studyPath = JSON.parse(localStorage.getItem("studyPath") ?? "[]") as RoadmapNode[]
+        const realSubjectName =
+          studyPath.find(
+            (node) => node.subject.toLowerCase() === decodedSubject.toLowerCase()
+          )?.subject ?? decodedSubject
+
         const payload: TutorMessageRequest = {
           studentId,
-          subject,
+          subject: realSubjectName || decodedSubject,
           message: trimmed,
           voiceMode: false,
           sessionHistory: updatedMessages,
@@ -68,26 +104,90 @@ export default function Tutor() {
         if (data.agentActivity?.length) {
           setAgentActivity((prev) => [...prev, ...data.agentActivity])
         }
+        if (typeof data.xpGained === "number") {
+          setTotalXp((prev) => prev + data.xpGained)
+          setLastXp(data.xpGained)
+        }
       } catch (err) {
         setError(err instanceof Error ? err.message : "Something went wrong.")
       } finally {
         setLoading(false)
       }
     },
-    [apiBase, messages, studentId, subject, resolveApiUrl]
+    [apiBase, messages, studentId, subject, resolveApiUrl, decodedSubject]
   )
 
   const handleSubmit = () => {
     void sendMessage(input)
   }
 
+  useEffect(() => {
+    if (topic && messages.length === 0 && !autoSentRef.current) {
+      autoSentRef.current = true
+      void sendMessage(`Help me understand: ${topic}`)
+    }
+  }, [topic, messages.length, sendMessage])
+
+  const toggleListening = () => {
+    const SpeechRecognitionCtor = (
+      window.SpeechRecognition ??
+      (window as typeof window & { webkitSpeechRecognition?: SpeechRecognitionConstructor })
+        .webkitSpeechRecognition
+    ) as SpeechRecognitionConstructor | undefined
+    if (!SpeechRecognitionCtor) {
+      setError("Speech recognition is not supported in this browser.")
+      return
+    }
+
+    if (!recognitionRef.current) {
+      const recognition = new SpeechRecognitionCtor()
+      recognition.lang = "en-US"
+      recognition.interimResults = false
+      recognition.maxAlternatives = 1
+      recognition.onresult = (event) => {
+        const transcript = event.results[0]?.[0]?.transcript ?? ""
+        setInput((prev) => (prev ? `${prev} ${transcript}` : transcript))
+      }
+      recognition.onend = () => {
+        setListening(false)
+      }
+      recognition.onerror = () => {
+        setListening(false)
+      }
+      recognitionRef.current = recognition
+    }
+
+    if (listening) {
+      recognitionRef.current?.stop()
+      setListening(false)
+    } else {
+      setError(null)
+      recognitionRef.current?.start()
+      setListening(true)
+    }
+  }
+
   return (
     <main className="min-h-screen bg-background px-6 py-16 text-foreground font-sans">
       <div className="mx-auto max-w-6xl">
         <div className="mb-8">
-          <h1 className="text-3xl md:text-4xl font-sans font-bold">
-            Tutor: {title}
-          </h1>
+          <button
+            type="button"
+            onClick={() => navigate(-1)}
+            className="mb-3 flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
+          >
+            ← Back
+          </button>
+          <div className="flex items-center justify-between gap-4 flex-wrap">
+            <h1 className="text-3xl md:text-4xl font-sans font-bold">
+              Tutor: {title}
+            </h1>
+            {totalXp > 0 && (
+              <div className="rounded-full border border-[#E6D7C5] bg-white/80 px-4 py-1 text-sm text-foreground">
+                Total XP: {totalXp}
+              </div>
+            )}
+          </div>
           {topic && (
             <p className="mt-2 text-sm text-muted-foreground">
               Focus topic: {topic} • Mode: {mode}
@@ -125,6 +225,9 @@ export default function Tutor() {
             </div>
 
             {error && <p className="text-sm text-[#B91C1C]">{error}</p>}
+            {lastXp !== null && (
+              <p className="text-sm text-[#B45309]">+{lastXp} XP earned</p>
+            )}
 
             <div className="flex items-center gap-2">
               <input
@@ -139,6 +242,17 @@ export default function Tutor() {
                   }
                 }}
               />
+              <button
+                type="button"
+                onClick={toggleListening}
+                className={`rounded-xl border px-4 py-3 text-sm font-semibold transition-colors ${
+                  listening
+                    ? "border-[#FF8C00] text-[#FF8C00] bg-[#FFEC99]"
+                    : "border-[#E6D7C5] text-muted-foreground bg-white/80 hover:border-[#FF8C00] hover:text-[#FF8C00]"
+                }`}
+              >
+                {listening ? "Listening..." : "Mic"}
+              </button>
               <button
                 type="button"
                 onClick={handleSubmit}

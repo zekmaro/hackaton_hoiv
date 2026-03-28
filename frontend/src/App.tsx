@@ -4,6 +4,7 @@ import Onboarding from './pages/Onboarding'
 import Dashboard from './pages/Dashboard'
 import SubjectDetail from './pages/SubjectDetail'
 import Tutor from './pages/Tutor'
+import Lesson from './pages/Lesson'
 
 function App() {
   return (
@@ -14,6 +15,7 @@ function App() {
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/dashboard/:subject" element={<SubjectDetail />} />
         <Route path="/tutor/:subject" element={<Tutor />} />
+        <Route path="/lesson/:nodeId" element={<Lesson />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>

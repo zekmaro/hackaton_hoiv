@@ -2,7 +2,7 @@ import type { CSSProperties } from "react"
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { SUBJECT_COLORS, SUBJECT_ICONS } from "../lib/subject-colors"
-import type { RoadmapNode, StudyPathResponse } from "@shared/types"
+import type { RoadmapNode } from "@shared/types"
 
 type SubjectCard = {
   name: string
@@ -11,6 +11,12 @@ type SubjectCard = {
   nodes: number
   progressLabel: string
   examDate?: string
+}
+
+type StudyPathApiResponse = {
+  studentId: string
+  studyPath?: RoadmapNode[]
+  nodesBySubject?: Record<string, RoadmapNode[]>
 }
 
 const formatShortDate = (isoDate: string) => {
@@ -51,8 +57,17 @@ export default function Dashboard() {
     try {
       const response = await fetch(resolveApiUrl(`/study-path/${studentId}`))
       if (!response.ok) throw new Error("Failed to load your study path.")
-      const data = (await response.json()) as StudyPathResponse
-      setRoadmap(Array.isArray(data.studyPath) ? data.studyPath : [])
+      const data = (await response.json()) as StudyPathApiResponse
+      if (Array.isArray(data.studyPath)) {
+        setRoadmap(data.studyPath)
+        localStorage.setItem("studyPath", JSON.stringify(data.studyPath))
+      } else if (data.nodesBySubject) {
+        const merged = Object.values(data.nodesBySubject).flat()
+        setRoadmap(merged)
+        localStorage.setItem("studyPath", JSON.stringify(merged))
+      } else {
+        setRoadmap([])
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong.")
     } finally {
@@ -81,7 +96,9 @@ export default function Dashboard() {
       const totalNodes = nodes.length
       const completedNodes = nodes.filter((node) => node.status === "completed").length
       const hasInProgress = nodes.some((node) => node.status === "in_progress")
-      const hasAvailable = nodes.some((node) => node.status === "available")
+      const hasAvailable = nodes.some(
+        (node) => node.status === "available" || node.status === "up_next"
+      )
       const statusLabel = hasInProgress
         ? "In progress"
         : hasAvailable
@@ -156,7 +173,9 @@ export default function Dashboard() {
                 <button
                   key={subject.name}
                   type="button"
-                  onClick={() => navigate(`/dashboard/${subject.name.toLowerCase()}`)}
+                  onClick={() =>
+                    navigate(`/dashboard/${encodeURIComponent(subject.name.toLowerCase())}`)
+                  }
                   className="subject-card group relative w-full overflow-hidden rounded-2xl border border-[#E6D7C5] bg-[#FFF4CC]/70 p-5 text-left transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_12px_28px_rgba(90,62,54,0.18)] hover:[border-color:var(--accent-border)]"
                   style={
                     {
