@@ -379,14 +379,10 @@ export default function Tutor() {
   // ── LESSON MODE ───────────────────────────────────────────────────────────────
 
   if (isLesson) {
-    // What content to show in the main area
-    const mainContent = isStreaming
+    // Lecture content always stays visible once received — phase change never hides it
+    const mainContent = isStreaming && !lectureContent
       ? streamingContent!
-      : currentPhase === "example"
-      ? (lectureContent ?? null)
-      : currentPhase === "complete"
-      ? (feedbackContent ?? lectureContent)
-      : null
+      : lectureContent ?? (isStreaming ? streamingContent! : null)
 
     // The problem for practice/challenge
     const activeProblem = currentPhase === "challenge"
