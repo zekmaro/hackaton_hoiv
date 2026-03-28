@@ -65,3 +65,55 @@ studyPathRouter.get('/:studentId', async (req, res, next) => {
     next(err)
   }
 })
+
+// GET /api/study-path/:studentId/:subject
+// Returns nodes filtered for a specific subject + subject-level metadata
+studyPathRouter.get('/:studentId/:subject', async (req, res, next) => {
+  try {
+    const { studentId, subject } = req.params
+    const decodedSubject = decodeURIComponent(subject)
+
+    const student = await readStudentMemory(studentId)
+    const memory = student.memory ?? {}
+    const studyPath: RoadmapNode[] = memory.studyPath ?? []
+    const examDates: { subject: string; date: string }[] = memory.examDates ?? []
+
+    // Find nodes for this subject (case-insensitive)
+    const nodes = studyPath.filter(
+      n => n.subject.toLowerCase() === decodedSubject.toLowerCase()
+    )
+
+    // Find the canonical subject name from the nodes
+    const canonicalSubject = nodes[0]?.subject ?? decodedSubject
+
+    // Exam for this subject
+    const examEntry = examDates.find(
+      e => e.subject.toLowerCase() === decodedSubject.toLowerCase()
+    )
+    const now = Date.now()
+    const nextExam = examEntry
+      ? {
+          subject: examEntry.subject,
+          date: examEntry.date,
+          daysLeft: Math.ceil((new Date(examEntry.date).getTime() - now) / 86400000),
+        }
+      : null
+
+    res.json({
+      studentId,
+      subject: canonicalSubject,
+      nodes,
+      xp: student.xp,
+      level: Math.floor(student.xp / 100),
+      streak: student.streak,
+      nextExam,
+      badges: [],
+    })
+  } catch (err) {
+    if (err instanceof Error && err.message === 'STUDENT_NOT_FOUND') {
+      res.status(404).json({ error: 'Student not found', code: 'STUDENT_NOT_FOUND', status: 404 })
+      return
+    }
+    next(err)
+  }
+})
