@@ -173,9 +173,7 @@ export default function Dashboard() {
                 <button
                   key={subject.name}
                   type="button"
-                  onClick={() =>
-                    navigate(`/dashboard/${encodeURIComponent(subject.name.toLowerCase())}`)
-                  }
+                  onClick={() => navigate(`/dashboard/${encodeURIComponent(subject.name)}`)}
                   className="subject-card group relative w-full overflow-hidden rounded-2xl border border-[#E6D7C5] bg-[#FFF4CC]/70 p-5 text-left transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_12px_28px_rgba(90,62,54,0.18)] hover:[border-color:var(--accent-border)]"
                   style={
                     {
