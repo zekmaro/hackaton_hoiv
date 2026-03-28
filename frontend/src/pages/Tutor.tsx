@@ -28,14 +28,13 @@ type SpeechRecognitionConstructor = new () => SpeechRecognitionInstance
 // ─── Phase types ─────────────────────────────────────────────────────────────
 
 type LessonPhase = "example" | "practice" | "challenge" | "complete"
-
+const PHASES: LessonPhase[] = ["example", "practice", "challenge", "complete"]
 const PHASE_LABELS: Record<LessonPhase, string> = {
-  example: "Worked Example",
+  example: "Lecture",
   practice: "Practice",
   challenge: "Challenge",
   complete: "Complete",
 }
-const PHASES: LessonPhase[] = ["example", "practice", "challenge", "complete"]
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -58,54 +57,88 @@ function phaseFromMarker(marker: string | null): LessonPhase | null {
 
 // ─── Markdown renderer ────────────────────────────────────────────────────────
 
-function TutorMessage({ content }: { content: string }) {
+function LessonDoc({ content, isStreaming }: { content: string; isStreaming?: boolean }) {
   return (
-    <ReactMarkdown
-      remarkPlugins={[remarkGfm, remarkMath]}
-      rehypePlugins={[rehypeKatex]}
-      components={{
-        p: ({ children }) => <p className="mb-3 last:mb-0 leading-relaxed">{children}</p>,
-        strong: ({ children }) => <strong className="font-bold">{children}</strong>,
-        em: ({ children }) => <em className="italic">{children}</em>,
-        code: ({ children, className }) =>
-          className?.includes("language-") ? (
-            <code className={className}>{children}</code>
-          ) : (
-            <code className="bg-[#F1F5F9] text-[#0F172A] px-1.5 py-0.5 rounded text-[0.85em] font-mono">
+    <div className="lesson-prose">
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm, remarkMath]}
+        rehypePlugins={[rehypeKatex]}
+        components={{
+          p: ({ children }) => <p className="mb-4 leading-[1.8] text-[#2d2d2d]">{children}</p>,
+          strong: ({ children }) => <strong className="font-semibold text-[#1a1a1a]">{children}</strong>,
+          em: ({ children }) => <em className="italic">{children}</em>,
+          code: ({ children, className }) =>
+            className?.includes("language-") ? (
+              <code className={className}>{children}</code>
+            ) : (
+              <code className="bg-[#F1F5F9] text-[#0F172A] px-1.5 py-0.5 rounded text-[0.88em] font-mono">
+                {children}
+              </code>
+            ),
+          pre: ({ children }) => (
+            <pre className="bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl p-5 overflow-x-auto text-sm font-mono my-5 text-[#0F172A]">
               {children}
-            </code>
+            </pre>
           ),
-        pre: ({ children }) => (
-          <pre className="bg-[#F1F5F9] rounded-xl p-4 overflow-x-auto text-sm font-mono my-3 text-[#0F172A]">
-            {children}
-          </pre>
-        ),
-        ul: ({ children }) => <ul className="list-disc pl-5 mb-3 space-y-1">{children}</ul>,
-        ol: ({ children }) => <ol className="list-decimal pl-5 mb-3 space-y-1">{children}</ol>,
-        li: ({ children }) => <li className="leading-relaxed">{children}</li>,
-        h1: ({ children }) => <h1 className="text-lg font-bold mb-2 mt-4">{children}</h1>,
-        h2: ({ children }) => <h2 className="text-base font-bold mb-2 mt-3">{children}</h2>,
-        h3: ({ children }) => <h3 className="text-sm font-bold mb-1 mt-2">{children}</h3>,
-        blockquote: ({ children }) => (
-          <blockquote className="border-l-4 border-[#FF8C00]/40 pl-4 italic text-muted-foreground my-3">
-            {children}
-          </blockquote>
-        ),
-        table: ({ children }) => (
-          <div className="overflow-x-auto my-3">
-            <table className="w-full border-collapse text-sm">{children}</table>
+          ul: ({ children }) => <ul className="list-disc pl-6 mb-4 space-y-1.5 text-[#2d2d2d]">{children}</ul>,
+          ol: ({ children }) => <ol className="list-decimal pl-6 mb-4 space-y-1.5 text-[#2d2d2d]">{children}</ol>,
+          li: ({ children }) => <li className="leading-relaxed">{children}</li>,
+          h1: ({ children }) => <h1 className="text-xl font-bold mb-3 mt-6 text-[#1a1a1a]">{children}</h1>,
+          h2: ({ children }) => <h2 className="text-base font-bold mb-2 mt-5 text-[#1a1a1a] uppercase tracking-wide text-xs opacity-60">{children}</h2>,
+          h3: ({ children }) => <h3 className="text-sm font-semibold mb-2 mt-4 text-[#1a1a1a]">{children}</h3>,
+          blockquote: ({ children }) => (
+            <blockquote className="border-l-4 border-[#FF8C00]/50 pl-4 text-[#555] my-4 italic">
+              {children}
+            </blockquote>
+          ),
+          table: ({ children }) => (
+            <div className="overflow-x-auto my-5">
+              <table className="w-full border-collapse text-sm">{children}</table>
+            </div>
+          ),
+          thead: ({ children }) => <thead className="bg-[#F8FAFC]">{children}</thead>,
+          th: ({ children }) => (
+            <th className="border border-[#E2E8F0] px-4 py-2 text-left font-semibold text-xs uppercase tracking-wide">{children}</th>
+          ),
+          td: ({ children }) => <td className="border border-[#E2E8F0] px-4 py-2">{children}</td>,
+          hr: () => <hr className="border-[#E2E8F0] my-6" />,
+        }}
+      >
+        {content}
+      </ReactMarkdown>
+      {isStreaming && (
+        <span className="inline-block w-0.5 h-5 bg-[#FF8C00] animate-pulse align-middle" />
+      )}
+    </div>
+  )
+}
+
+// ─── Phase stepper ────────────────────────────────────────────────────────────
+
+function PhaseStepper({ current }: { current: LessonPhase }) {
+  const idx = PHASES.indexOf(current)
+  return (
+    <div className="flex items-center gap-1">
+      {PHASES.map((phase, i) => {
+        const done = i < idx
+        const active = i === idx
+        return (
+          <div key={phase} className="flex items-center gap-1">
+            <div className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold transition-all ${
+              done ? "bg-[#22C55E]/15 text-[#16a34a]"
+              : active ? "bg-[#FF8C00] text-white"
+              : "text-[#94a3b8]"
+            }`}>
+              {done && <span>✓</span>}
+              {PHASE_LABELS[phase]}
+            </div>
+            {i < PHASES.length - 1 && (
+              <div className={`w-6 h-px ${i < idx ? "bg-[#22C55E]/40" : "bg-[#E2E8F0]"}`} />
+            )}
           </div>
-        ),
-        thead: ({ children }) => <thead className="bg-[#F1F5F9]">{children}</thead>,
-        th: ({ children }) => (
-          <th className="border border-[#E6D7C5] px-3 py-2 text-left font-semibold">{children}</th>
-        ),
-        td: ({ children }) => <td className="border border-[#E6D7C5] px-3 py-2">{children}</td>,
-        hr: () => <hr className="border-[#E6D7C5] my-4" />,
-      }}
-    >
-      {content}
-    </ReactMarkdown>
+        )
+      })}
+    </div>
   )
 }
 
@@ -132,71 +165,52 @@ export default function Tutor() {
 
   // ── State ────────────────────────────────────────────────────────────────────
 
-  // Committed messages (only complete, never partial)
   const [messages, setMessages] = useState<OnboardChatMessage[]>([])
-  // In-progress streaming text — null when not streaming
   const [streamingContent, setStreamingContent] = useState<string | null>(null)
-
   const [agentActivity, setAgentActivity] = useState<AgentActivity[]>([])
   const [input, setInput] = useState("")
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [attachments, setAttachments] = useState<File[]>([])
   const [totalXp, setTotalXp] = useState(0)
-  const [lastXp, setLastXp] = useState<number | null>(null)
   const [currentPhase, setCurrentPhase] = useState<LessonPhase>("example")
   const [lessonComplete, setLessonComplete] = useState(false)
   const [voiceModeActive, setVoiceModeActive] = useState(false)
   const [listening, setListening] = useState(false)
+
+  // Lesson-specific: track content per phase
+  const [lectureContent, setLectureContent] = useState<string | null>(null)
+  const [lectureReady, setLectureReady] = useState(false) // lecture received, show "practice" CTA
+  const [practiceContent, setPracticeContent] = useState<string | null>(null)
+  const [feedbackContent, setFeedbackContent] = useState<string | null>(null)
+  const [challengeContent, setChallengeContent] = useState<string | null>(null)
 
   // ── Refs ─────────────────────────────────────────────────────────────────────
 
   const recognitionRef = useRef<SpeechRecognitionInstance | null>(null)
   const autoSentRef = useRef(false)
   const messagesEndRef = useRef<HTMLDivElement | null>(null)
-  const fileInputRef = useRef<HTMLInputElement | null>(null)
   const messagesRef = useRef<OnboardChatMessage[]>([])
   const chatContainerRef = useRef<HTMLDivElement | null>(null)
   const abortControllerRef = useRef<AbortController | null>(null)
-  // Maps each phase to the message index where it starts (for scroll-to navigation)
   const phaseStartIndex = useRef<Partial<Record<LessonPhase, number>>>({})
 
   useEffect(() => { messagesRef.current = messages }, [messages])
-
-  // ── Display messages: committed + in-progress streaming ───────────────────
 
   const displayMessages = useMemo(() => {
     if (streamingContent === null) return messages
     return [...messages, { role: "assistant" as const, content: streamingContent }]
   }, [messages, streamingContent])
 
-  // ── Auto scroll ──────────────────────────────────────────────────────────────
-
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [displayMessages])
-
-  // ── API helper ───────────────────────────────────────────────────────────────
 
   const resolveApiUrl = useCallback(
     (path: string) => apiBase.endsWith("/api") ? `${apiBase}${path}` : `${apiBase}/api${path}`,
     [apiBase]
   )
 
-  // ── Phase scroll navigation ──────────────────────────────────────────────────
-
-  const scrollToPhase = useCallback((phase: LessonPhase) => {
-    const idx = phaseStartIndex.current[phase]
-    if (idx === undefined || !chatContainerRef.current) return
-    const el = chatContainerRef.current.querySelector(`[data-msg-idx="${idx}"]`)
-    el?.scrollIntoView({ behavior: "smooth", block: "start" })
-  }, [])
-
-  // ── Stop streaming ───────────────────────────────────────────────────────────
-
-  const stopStreaming = useCallback(() => {
-    abortControllerRef.current?.abort()
-  }, [])
+  const stopStreaming = useCallback(() => { abortControllerRef.current?.abort() }, [])
 
   // ── Send message ─────────────────────────────────────────────────────────────
 
@@ -205,37 +219,27 @@ export default function Tutor() {
     if (!apiBase) { setError("Missing VITE_API_URL."); return }
     const trimmed = text.trim()
     if (!trimmed) return
-    const attachmentNote =
-      attachments.length > 0
-        ? `\n\n[Attached files: ${attachments.map((file) => file.name).join(", ")}]`
-        : ""
-    const messageWithAttachments = `${trimmed}${attachmentNote}`
 
     const currentMessages = messagesRef.current
     const userMsgIndex = currentMessages.length
-
-    // Record phase 1 start at the first assistant message
     if (phaseStartIndex.current.example === undefined) {
       phaseStartIndex.current.example = userMsgIndex + 1
     }
 
-    setMessages([...currentMessages, { role: "user", content: messageWithAttachments }])
+    setMessages([...currentMessages, { role: "user", content: trimmed }])
     setInput("")
-    setAttachments([])
     setLoading(true)
     setError(null)
-    setLastXp(null)
 
-    // Declared outside try so catch can commit partial text on error
     let fullText = ""
     let finalPhase: string | null = null
 
     try {
-        const payload: TutorMessageRequest = {
-          studentId,
-          subject: realSubjectName,
-          message: messageWithAttachments,
-          voiceMode: false,
+      const payload: TutorMessageRequest = {
+        studentId,
+        subject: realSubjectName,
+        message: trimmed,
+        voiceMode: false,
         mode,
         topic: topic || undefined,
         nodeId: nodeId || undefined,
@@ -255,7 +259,6 @@ export default function Tutor() {
       if (!response.ok) throw new Error("Failed to reach the tutor service.")
       if (!response.body) throw new Error("No response stream.")
 
-      // Start streaming — isolated state, never touches messages[]
       setStreamingContent("")
       setLoading(false)
 
@@ -266,70 +269,78 @@ export default function Tutor() {
       while (true) {
         const { done, value } = await reader.read()
         if (done) break
-
         buffer += decoder.decode(value, { stream: true })
         const parts = buffer.split("\n\n")
         buffer = parts.pop() ?? ""
-
         for (const part of parts) {
           const line = part.trim()
           if (!line.startsWith("data: ")) continue
           let event: Record<string, unknown>
           try { event = JSON.parse(line.slice(6)) } catch { continue }
-
           if (event.type === "chunk") {
             fullText += event.text as string
             setStreamingContent(parsePhaseMarker(fullText).clean)
           } else if (event.type === "done") {
             finalPhase = parsePhaseMarker(fullText).phase
-
             const activity = event.agentActivity as AgentActivity[] | undefined
             if (activity?.length) setAgentActivity((prev) => [...prev, ...activity])
             const xp = event.xpGained as number | undefined
-            if (xp && xp > 0) { setTotalXp((p) => p + xp); setLastXp(xp) }
+            if (xp && xp > 0) setTotalXp((p) => p + xp)
           }
         }
       }
 
-      // Commit final message to messages[] and clear streaming state
       const { clean } = parsePhaseMarker(fullText)
-      const committedIndex = messagesRef.current.length + 1 // after user msg
+      const committedIndex = messagesRef.current.length + 1
       setMessages((prev) => [...prev, { role: "assistant", content: clean }])
       setStreamingContent(null)
 
-      // Update phase after committing
-      const newPhase = phaseFromMarker(finalPhase)
-      if (newPhase) {
-        setCurrentPhase(newPhase)
-        if (newPhase === "complete") {
-          setLessonComplete(true)
-          // Mark node complete in DB — unlocks next node and awards XP
-          if (nodeId && studentId) {
-            void fetch(resolveApiUrl("/lesson/complete"), {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ nodeId, studentId, score: 8 }),
-            })
-          }
+      // Update lesson state based on phase marker
+      if (finalPhase === "example_done") {
+        setLectureContent(clean)
+        setLectureReady(true)
+        setCurrentPhase("practice")
+      } else if (finalPhase === "practice") {
+        setPracticeContent(clean)
+        setFeedbackContent(null)
+        setCurrentPhase("practice")
+        phaseStartIndex.current.practice = committedIndex + 1
+      } else if (finalPhase === "practice_passed") {
+        setFeedbackContent(clean)
+        setChallengeContent(null)
+        setCurrentPhase("challenge")
+        phaseStartIndex.current.challenge = committedIndex + 1
+      } else if (finalPhase === "challenge_passed") {
+        setFeedbackContent(clean)
+        setCurrentPhase("complete")
+      } else if (finalPhase === "complete") {
+        setLessonComplete(true)
+        setCurrentPhase("complete")
+        if (nodeId && studentId) {
+          void fetch(resolveApiUrl("/lesson/complete"), {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ nodeId, studentId, score: 8 }),
+          })
         }
-        // Record where the next phase's messages start
-        phaseStartIndex.current[newPhase] = committedIndex + 1
+      } else {
+        // Feedback without phase transition (wrong answer, hint, etc.)
+        setFeedbackContent(clean)
       }
 
     } catch (err) {
-      // Commit whatever text arrived before the error/abort — never discard it
       if (fullText.trim()) {
         const { clean } = parsePhaseMarker(fullText)
         setMessages((prev) => [...prev, { role: "assistant", content: clean }])
+        setFeedbackContent(clean)
       }
       setStreamingContent(null)
-      // AbortError = user hit stop — not an error worth showing
-      const isAbort = err instanceof Error && (err.name === "AbortError" || err.message.includes("aborted") || err.message.includes("abort"))
+      const isAbort = err instanceof Error && (err.name === "AbortError" || err.message.includes("abort"))
       if (!isAbort) setError(err instanceof Error ? err.message : "Something went wrong.")
     } finally {
       setLoading(false)
     }
-  }, [apiBase, studentId, subject, resolveApiUrl, realSubjectName, mode, topic, nodeId, attachments])
+  }, [apiBase, studentId, subject, resolveApiUrl, realSubjectName, mode, topic, nodeId])
 
   // ── Auto-send opening message ─────────────────────────────────────────────
 
@@ -347,71 +358,306 @@ export default function Tutor() {
       window.SpeechRecognition ??
       (window as typeof window & { webkitSpeechRecognition?: SpeechRecognitionConstructor }).webkitSpeechRecognition
     ) as SpeechRecognitionConstructor | undefined
-    if (!Ctor) { setError("Speech recognition not supported in this browser."); return }
-
+    if (!Ctor) { setError("Speech recognition not supported."); return }
     if (!recognitionRef.current) {
       const r = new Ctor()
       r.lang = "en-US"; r.interimResults = false; r.maxAlternatives = 1
-      r.onresult = (e) => {
-        const t = e.results[0]?.[0]?.transcript ?? ""
-        setInput((p) => p ? `${p} ${t}` : t)
-      }
+      r.onresult = (e) => { const t = e.results[0]?.[0]?.transcript ?? ""; setInput((p) => p ? `${p} ${t}` : t) }
       r.onend = () => setListening(false)
       r.onerror = () => setListening(false)
       recognitionRef.current = r
     }
-
     if (listening) { recognitionRef.current.stop(); setListening(false) }
     else { setError(null); recognitionRef.current.start(); setListening(true) }
   }
 
-  const onSelectFiles = (event: { target: HTMLInputElement }) => {
-    const fileList = event.target.files
-    if (!fileList || fileList.length === 0) return
-    setAttachments((prev) => [...prev, ...Array.from(fileList)])
-    event.target.value = ""
-  }
+  // ─────────────────────────────────────────────────────────────────────────────
 
-  const removeAttachment = (index: number) => {
-    setAttachments((prev) => prev.filter((_, fileIndex) => fileIndex !== index))
-  }
-
-  const captureScreenshot = async () => {
-    if (!navigator.mediaDevices?.getDisplayMedia) {
-      setError("Screenshot capture is not supported in this browser.")
-      return
-    }
-    try {
-      setError(null)
-      const stream = await navigator.mediaDevices.getDisplayMedia({ video: true })
-      const videoTrack = stream.getVideoTracks()[0]
-      const video = document.createElement("video")
-      video.srcObject = stream
-      video.muted = true
-      await video.play()
-
-      const canvas = document.createElement("canvas")
-      canvas.width = video.videoWidth
-      canvas.height = video.videoHeight
-      const context = canvas.getContext("2d")
-      if (!context) throw new Error("Could not create screenshot canvas.")
-      context.drawImage(video, 0, 0, canvas.width, canvas.height)
-
-      const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/png"))
-      stream.getTracks().forEach((track) => track.stop())
-      if (!blob) throw new Error("Failed to capture screenshot.")
-
-      const file = new File([blob], `screenshot-${Date.now()}.png`, { type: "image/png" })
-      setAttachments((prev) => [...prev, file])
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to capture screenshot.")
-    }
-  }
-
-  // ── Render ────────────────────────────────────────────────────────────────────
-
-  const currentPhaseIndex = PHASES.indexOf(currentPhase)
   const isStreaming = streamingContent !== null
+  const currentPhaseIndex = PHASES.indexOf(currentPhase)
+
+  // ── LESSON MODE ───────────────────────────────────────────────────────────────
+
+  if (isLesson) {
+    // What content to show in the main area
+    const mainContent = isStreaming
+      ? streamingContent!
+      : currentPhase === "example"
+      ? (lectureContent ?? null)
+      : currentPhase === "complete"
+      ? (feedbackContent ?? lectureContent)
+      : null
+
+    // The problem for practice/challenge
+    const activeProblem = currentPhase === "challenge"
+      ? (challengeContent ?? practiceContent)
+      : practiceContent
+
+    // Whether we're waiting for the first response
+    const awaitingLecture = loading && !lectureContent && !isStreaming
+
+    return (
+      <>
+        {voiceModeActive && (
+          <VoiceMode
+            onClose={() => setVoiceModeActive(false)}
+            subject={decodedSubject}
+            realSubjectName={realSubjectName}
+            topic={topic}
+            mode={mode}
+            nodeId={nodeId}
+            studentId={studentId ?? ""}
+            apiBase={apiBase}
+            initialMessages={messages}
+          />
+        )}
+
+        <div className="min-h-screen bg-[#FAFAF8] font-sans">
+
+          {/* Sticky top bar */}
+          <div className="sticky top-0 z-20 bg-white/95 backdrop-blur border-b border-[#E2E8F0] px-6 py-3">
+            <div className="mx-auto max-w-4xl flex items-center justify-between gap-4">
+              <button
+                type="button"
+                onClick={() => navigate(`/dashboard/${encodeURIComponent(decodedSubject)}`)}
+                className="text-sm text-[#64748b] hover:text-[#1a1a1a] transition-colors flex items-center gap-1.5"
+              >
+                ← {realSubjectName}
+              </button>
+
+              <PhaseStepper current={currentPhase} />
+
+              <div className="flex items-center gap-3">
+                {totalXp > 0 && (
+                  <span className="text-xs font-bold text-[#B45309] bg-[#FEF3C7] px-2.5 py-1 rounded-full">
+                    +{totalXp} XP
+                  </span>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setVoiceModeActive(true)}
+                  className="flex items-center gap-1.5 rounded-full bg-[#0F172A] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#1e293b] transition-colors"
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
+                    <path d="M19 10v2a7 7 0 0 1-14 0v-2H3v2a9 9 0 0 0 8 8.94V23h-3v2h8v-2h-3v-2.06A9 9 0 0 0 21 12v-2h-2z" />
+                  </svg>
+                  Voice
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Page content */}
+          <div className="mx-auto max-w-3xl px-6 pt-10 pb-40">
+
+            {/* Topic heading */}
+            <div className="mb-10">
+              <p className="text-xs font-semibold uppercase tracking-widest text-[#94a3b8] mb-2">
+                {PHASE_LABELS[currentPhase]}
+              </p>
+              <h1 className="text-3xl font-bold text-[#1a1a1a] leading-tight">{topic}</h1>
+            </div>
+
+            {/* Loading skeleton */}
+            {awaitingLecture && (
+              <div className="space-y-4 animate-pulse">
+                <div className="h-4 bg-[#E2E8F0] rounded w-3/4" />
+                <div className="h-4 bg-[#E2E8F0] rounded w-full" />
+                <div className="h-4 bg-[#E2E8F0] rounded w-5/6" />
+                <div className="h-4 bg-[#E2E8F0] rounded w-2/3" />
+                <div className="h-32 bg-[#E2E8F0] rounded-xl w-full mt-6" />
+                <div className="h-4 bg-[#E2E8F0] rounded w-full" />
+                <div className="h-4 bg-[#E2E8F0] rounded w-4/5" />
+              </div>
+            )}
+
+            {/* Lecture content (phase 1 + streaming) */}
+            {(mainContent !== null || isStreaming) && currentPhase !== "complete" && (
+              <div ref={chatContainerRef}>
+                <LessonDoc
+                  content={isStreaming ? streamingContent! : (mainContent ?? "")}
+                  isStreaming={isStreaming}
+                />
+              </div>
+            )}
+
+            {/* Practice / Challenge area */}
+            {(currentPhase === "practice" || currentPhase === "challenge") && !isStreaming && (
+              <div className="mt-10 space-y-6">
+                {/* Problem card */}
+                {(isStreaming ? null : (currentPhase === "challenge" ? challengeContent : practiceContent) ?? (isStreaming ? streamingContent : null)) === null && loading ? null : (
+                  activeProblem || isStreaming ? (
+                    <div className="rounded-2xl bg-[#0F172A] px-7 py-6">
+                      <p className="text-xs font-bold uppercase tracking-widest text-[#64748b] mb-4">
+                        {currentPhase === "challenge" ? "Challenge Problem" : "Practice Problem"}
+                      </p>
+                      <div className="text-white">
+                        <LessonDoc content={activeProblem ?? ""} />
+                      </div>
+                    </div>
+                  ) : null
+                )}
+
+                {/* Feedback card */}
+                {feedbackContent && (
+                  <div className="rounded-2xl border-l-4 border-[#FF8C00] bg-[#FFF7ED] px-6 py-5">
+                    <p className="text-xs font-bold uppercase tracking-widest text-[#FF8C00] mb-3">Feedback</p>
+                    <LessonDoc content={feedbackContent} />
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Completion screen */}
+            {currentPhase === "complete" && lessonComplete && (
+              <div className="mt-8 text-center space-y-6">
+                <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-[#22C55E]/15 text-4xl">
+                  🎓
+                </div>
+                <div>
+                  <h2 className="text-2xl font-bold text-[#1a1a1a] mb-2">Lesson complete</h2>
+                  <p className="text-[#64748b]">You've mastered <strong>{topic}</strong></p>
+                  {totalXp > 0 && (
+                    <p className="text-[#B45309] font-bold mt-1">+{totalXp} XP earned</p>
+                  )}
+                </div>
+                {feedbackContent && (
+                  <div className="text-left bg-white border border-[#E2E8F0] rounded-2xl px-6 py-5 max-w-xl mx-auto">
+                    <p className="text-xs font-bold uppercase tracking-widest text-[#94a3b8] mb-3">Summary</p>
+                    <LessonDoc content={feedbackContent} />
+                  </div>
+                )}
+                <button
+                  type="button"
+                  onClick={() => navigate(`/dashboard/${encodeURIComponent(decodedSubject)}`)}
+                  className="inline-flex items-center gap-2 rounded-full bg-[#22C55E] px-7 py-3 font-bold text-white hover:bg-green-600 transition-colors text-sm"
+                >
+                  Back to roadmap →
+                </button>
+              </div>
+            )}
+
+            {error && (
+              <div className="mt-4 text-sm text-[#B91C1C] bg-red-50 px-4 py-3 rounded-xl">{error}</div>
+            )}
+
+            <div ref={messagesEndRef} />
+          </div>
+
+          {/* Fixed bottom input bar */}
+          {!lessonComplete && (
+            <div className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur border-t border-[#E2E8F0] px-6 py-4">
+              <div className="mx-auto max-w-3xl">
+
+                {/* Phase 1 complete — offer to move to practice */}
+                {currentPhase === "practice" && lectureReady && !practiceContent && !loading && (
+                  <div className="flex items-center gap-3">
+                    <input
+                      value={input}
+                      onChange={(e) => setInput(e.target.value)}
+                      placeholder="Ask a question about the lecture…"
+                      className="flex-1 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#FF8C00]/30"
+                      onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void sendMessage(input) } }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => void sendMessage(input.trim() || "I understand the lecture. Give me a practice problem.")}
+                      className="rounded-xl bg-[#FF8C00] px-5 py-3 text-sm font-bold text-white hover:bg-[#e07b00] transition-colors whitespace-nowrap"
+                    >
+                      {input.trim() ? "Ask" : "Practice problems →"}
+                    </button>
+                  </div>
+                )}
+
+                {/* Practice / Challenge — answer submission */}
+                {(currentPhase === "practice" || currentPhase === "challenge") && (practiceContent || challengeContent || feedbackContent) && (
+                  <div className="space-y-2">
+                    {feedbackContent && (
+                      <p className="text-xs text-[#94a3b8] font-medium px-1">
+                        {currentPhase === "practice" ? "Refine your answer or ask for a hint" : "Attempt the challenge"}
+                      </p>
+                    )}
+                    <div className="flex items-end gap-2">
+                      <textarea
+                        value={input}
+                        onChange={(e) => setInput(e.target.value)}
+                        placeholder={currentPhase === "challenge" ? "Write your solution to the challenge…" : "Write your solution…"}
+                        rows={3}
+                        disabled={isStreaming}
+                        className="flex-1 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#FF8C00]/30 resize-none disabled:opacity-50"
+                        onKeyDown={(e) => { if (e.key === "Enter" && e.ctrlKey) { e.preventDefault(); void sendMessage(input) } }}
+                      />
+                      <div className="flex flex-col gap-2">
+                        <button
+                          type="button"
+                          onClick={() => void sendMessage("Give me a hint")}
+                          disabled={isStreaming || loading}
+                          className="rounded-xl border border-[#E2E8F0] bg-white px-4 py-2.5 text-xs font-semibold text-[#64748b] hover:border-[#FF8C00] hover:text-[#FF8C00] transition-colors disabled:opacity-50"
+                        >
+                          Hint
+                        </button>
+                        {isStreaming ? (
+                          <button
+                            type="button"
+                            onClick={stopStreaming}
+                            className="w-10 h-10 rounded-full bg-[#0F172A] hover:bg-[#1e293b] flex items-center justify-center transition-colors"
+                          >
+                            <span className="w-3 h-3 rounded-sm bg-white block" />
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => void sendMessage(input)}
+                            disabled={loading || !input.trim()}
+                            className="rounded-xl bg-[#FF8C00] px-4 py-2.5 text-xs font-bold text-white hover:bg-[#e07b00] transition-colors disabled:opacity-50"
+                          >
+                            Submit
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                    <p className="text-[10px] text-[#94a3b8] px-1">Ctrl+Enter to submit</p>
+                  </div>
+                )}
+
+                {/* Loading while streaming */}
+                {(loading && !isStreaming) && (
+                  <div className="flex items-center gap-2 text-sm text-[#94a3b8] py-2">
+                    <div className="flex gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-[#94a3b8] animate-bounce" style={{ animationDelay: "0ms" }} />
+                      <span className="w-1.5 h-1.5 rounded-full bg-[#94a3b8] animate-bounce" style={{ animationDelay: "150ms" }} />
+                      <span className="w-1.5 h-1.5 rounded-full bg-[#94a3b8] animate-bounce" style={{ animationDelay: "300ms" }} />
+                    </div>
+                    Thinking…
+                  </div>
+                )}
+
+                {/* Streaming — show stop button */}
+                {isStreaming && currentPhase === "example" && (
+                  <div className="flex items-center gap-3">
+                    <span className="text-sm text-[#94a3b8] flex items-center gap-2">
+                      <span className="w-1.5 h-1.5 rounded-full bg-[#FF8C00] animate-pulse" />
+                      Writing lecture…
+                    </span>
+                    <button
+                      type="button"
+                      onClick={stopStreaming}
+                      className="w-9 h-9 rounded-full bg-[#0F172A] hover:bg-[#1e293b] flex items-center justify-center transition-colors ml-auto"
+                    >
+                      <span className="w-3 h-3 rounded-sm bg-white block" />
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      </>
+    )
+  }
+
+  // ── FREE CHAT MODE ────────────────────────────────────────────────────────────
 
   return (
     <>
@@ -428,97 +674,51 @@ export default function Tutor() {
           initialMessages={messages}
         />
       )}
-    <main className="min-h-screen bg-background px-6 py-16 text-foreground font-sans">
-      <div className="mx-auto max-w-6xl">
+      <main className="min-h-screen bg-background px-6 py-16 text-foreground font-sans">
+        <div className="mx-auto max-w-4xl">
 
-        {/* Header */}
-        <div className="mb-8">
-          <button
-            type="button"
-            onClick={() => navigate(`/dashboard/${encodeURIComponent(decodedSubject)}`)}
-            className="mb-3 flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
-          >
-            ← Back to roadmap
-          </button>
-          <div className="flex items-center justify-between gap-4 flex-wrap">
-            <div>
-              <p className="text-sm text-muted-foreground mb-1">{realSubjectName}</p>
-              <h1 className="text-2xl md:text-3xl font-sans font-bold">
-                {isLesson ? topic : "Free tutor"}
-              </h1>
-            </div>
-          <div className="flex items-center gap-3">
-              {totalXp > 0 && (
-                <div className="rounded-full border border-[#E6D7C5] bg-white/80 px-4 py-1 text-sm">
-                  {totalXp} XP this session
-                </div>
-              )}
-              <button
-                type="button"
-                onClick={() => setVoiceModeActive(true)}
-                className="flex items-center gap-2 rounded-full bg-[#0F172A] px-4 py-2 text-sm font-semibold text-white hover:bg-[#1e293b] transition-colors shadow-md"
-              >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
-                  <path d="M19 10v2a7 7 0 0 1-14 0v-2H3v2a9 9 0 0 0 8 8.94V23h-3v2h8v-2h-3v-2.06A9 9 0 0 0 21 12v-2h-2z" />
-                </svg>
-                Voice mode
-              </button>
+          <div className="mb-8">
+            <button
+              type="button"
+              onClick={() => navigate(`/dashboard/${encodeURIComponent(decodedSubject)}`)}
+              className="mb-3 flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
+            >
+              ← Back
+            </button>
+            <div className="flex items-center justify-between gap-4 flex-wrap">
+              <div>
+                <p className="text-sm text-muted-foreground mb-1">{realSubjectName}</p>
+                <h1 className="text-2xl font-bold">{topic || "Free tutor"}</h1>
+              </div>
+              <div className="flex items-center gap-3">
+                {totalXp > 0 && (
+                  <span className="text-xs font-bold text-[#B45309] bg-[#FEF3C7] px-3 py-1 rounded-full">
+                    +{totalXp} XP
+                  </span>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setVoiceModeActive(true)}
+                  className="flex items-center gap-2 rounded-full bg-[#0F172A] px-4 py-2 text-sm font-semibold text-white hover:bg-[#1e293b] transition-colors"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
+                    <path d="M19 10v2a7 7 0 0 1-14 0v-2H3v2a9 9 0 0 0 8 8.94V23h-3v2h8v-2h-3v-2.06A9 9 0 0 0 21 12v-2h-2z" />
+                  </svg>
+                  Voice mode
+                </button>
+              </div>
             </div>
           </div>
-        </div>
 
-        {/* Phase progress bar — lesson mode only */}
-        {isLesson && (
-          <div className="mb-6 flex items-center gap-2 flex-wrap">
-            {PHASES.map((phase, i) => {
-              const phaseIndex = PHASES.indexOf(phase)
-              const isDone = phaseIndex < currentPhaseIndex
-              const isActive = phase === currentPhase
-              const isClickable = isDone && phaseStartIndex.current[phase] !== undefined
-              return (
-                <span key={phase} className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => isClickable && scrollToPhase(phase)}
-                    disabled={!isClickable}
-                    title={isClickable ? `Jump to ${PHASE_LABELS[phase]}` : undefined}
-                    className={`px-3 py-1 rounded-full border text-xs font-semibold transition-all ${
-                      isDone
-                        ? "bg-[#22C55E]/10 border-[#22C55E]/30 text-[#15803D] cursor-pointer hover:bg-[#22C55E]/20"
-                        : isActive
-                        ? "bg-[#FF8C00] border-[#FF8C00] text-white cursor-default"
-                        : "bg-white/60 border-[#E6D7C5] text-muted-foreground cursor-default opacity-50"
-                    }`}
-                  >
-                    {isDone ? "✓ " : ""}{PHASE_LABELS[phase]}
-                  </button>
-                  {i < PHASES.length - 1 && (
-                    <span className="text-muted-foreground text-xs">→</span>
-                  )}
-                </span>
-              )
-            })}
-          </div>
-        )}
-
-        {/* Main layout */}
-        <div className="grid grid-cols-[1fr_300px] gap-6 max-[900px]:grid-cols-1">
-
-          {/* Chat panel */}
-          <section className="rounded-2xl border border-[#E6D7C5] bg-[#FFF4CC]/70 p-6 flex flex-col gap-4 min-h-[480px]">
-
-            {/* Messages */}
+          <div className="rounded-2xl border border-[#E6D7C5] bg-[#FFF4CC]/60 p-6 flex flex-col gap-4 min-h-[500px]">
             <div
               ref={chatContainerRef}
-              className="flex-1 space-y-5 overflow-y-auto max-h-[560px] pr-1"
+              className="flex-1 space-y-5 overflow-y-auto max-h-[600px] pr-1"
             >
               {displayMessages.length === 0 && !loading && !isStreaming && (
-                <div className="rounded-xl border border-[#E6D7C5] bg-white/80 p-4 text-sm text-muted-foreground">
-                  {isLesson ? `Starting lesson on "${topic}"…` : "Ask your tutor anything to begin."}
-                </div>
+                <p className="text-sm text-muted-foreground p-2">Ask anything — this is office hours.</p>
               )}
-
               {displayMessages.map((msg, index) => (
                 <div
                   key={index}
@@ -526,165 +726,69 @@ export default function Tutor() {
                   className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
                 >
                   {msg.role === "assistant" ? (
-                    <div className="w-full rounded-2xl border border-[#E6D7C5] bg-white/95 px-5 py-4 text-sm text-foreground shadow-sm">
-                      <TutorMessage content={msg.content} />
-                      {/* Cursor blink while this is the streaming message */}
-                      {isStreaming && index === displayMessages.length - 1 && (
-                        <span className="inline-block w-0.5 h-4 bg-[#FF8C00] animate-pulse ml-0.5 align-middle" />
-                      )}
+                    <div className="w-full bg-white rounded-2xl border border-[#E6D7C5] px-5 py-4 text-sm shadow-sm">
+                      <LessonDoc content={msg.content} isStreaming={isStreaming && index === displayMessages.length - 1} />
                     </div>
                   ) : (
-                    <div className="max-w-[75%] rounded-2xl bg-[#FF8C00] px-4 py-3 text-sm text-white shadow-sm leading-relaxed">
+                    <div className="max-w-[70%] rounded-2xl bg-[#0F172A] px-4 py-3 text-sm text-white leading-relaxed">
                       {msg.content}
                     </div>
                   )}
                 </div>
               ))}
-
-              {/* Only show Thinking... when waiting for first chunk, not during streaming */}
               {loading && !isStreaming && (
-                <div className="flex justify-start">
-                  <div className="rounded-2xl border border-[#E6D7C5] bg-white/90 px-4 py-3 text-sm text-muted-foreground">
-                    Thinking…
-                  </div>
+                <div className="flex gap-1 px-2 py-3">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#94a3b8] animate-bounce" style={{ animationDelay: "0ms" }} />
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#94a3b8] animate-bounce" style={{ animationDelay: "150ms" }} />
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#94a3b8] animate-bounce" style={{ animationDelay: "300ms" }} />
                 </div>
               )}
-
               <div ref={messagesEndRef} />
             </div>
 
-            {lastXp !== null && lastXp > 0 && (
-              <p className="text-sm font-semibold text-[#B45309]">+{lastXp} XP earned</p>
-            )}
-
-            {lessonComplete && (
-              <div className="rounded-xl border border-[#22C55E]/40 bg-[#22C55E]/10 p-5 flex flex-col gap-3">
-                <p className="text-[#15803D] font-bold text-lg">Lesson complete! +{totalXp} XP earned</p>
-                <p className="text-sm text-muted-foreground">You mastered: {topic}</p>
-                <button
-                  type="button"
-                  onClick={() => navigate(`/dashboard/${encodeURIComponent(decodedSubject)}`)}
-                  className="self-start rounded-xl bg-[#22C55E] px-5 py-2 text-sm font-bold text-white hover:bg-green-600 transition-colors"
-                >
-                  Back to roadmap →
-                </button>
-              </div>
-            )}
-
             {error && <p className="text-sm text-[#B91C1C]">{error}</p>}
 
-            {attachments.length > 0 && (
-              <div className="flex flex-wrap gap-2">
-                {attachments.map((file, index) => (
-                  <span
-                    key={`${file.name}-${index}`}
-                    className="inline-flex items-center gap-2 rounded-full border border-[#E6D7C5] bg-white/80 px-3 py-1 text-xs text-foreground"
-                  >
-                    {file.name}
-                    <button
-                      type="button"
-                      onClick={() => removeAttachment(index)}
-                      className="text-muted-foreground hover:text-foreground"
-                      aria-label={`Remove ${file.name}`}
-                    >
-                      x
-                    </button>
-                  </span>
-                ))}
-              </div>
-            )}
-
-            {!lessonComplete && (
-              <div className="flex items-center gap-2">
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  multiple
-                  className="hidden"
-                  onChange={onSelectFiles}
-                />
+            <div className="flex items-center gap-2">
+              <input
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                placeholder="Ask your tutor anything…"
+                disabled={isStreaming}
+                className="flex-1 rounded-xl border border-[#E6D7C5] bg-white px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#FF8C00]/30 disabled:opacity-50"
+                onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void sendMessage(input) } }}
+              />
+              <button
+                type="button"
+                onClick={toggleListening}
+                disabled={isStreaming}
+                className={`rounded-xl border px-4 py-3 text-sm font-semibold transition-colors disabled:opacity-50 ${
+                  listening ? "border-[#FF8C00] text-[#FF8C00] bg-[#FEF3C7]" : "border-[#E6D7C5] text-muted-foreground bg-white hover:border-[#FF8C00]"
+                }`}
+              >
+                {listening ? "●" : "Mic"}
+              </button>
+              {isStreaming ? (
                 <button
                   type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={isStreaming}
-                  className="rounded-xl border border-[#E6D7C5] bg-white/80 px-3 py-3 text-sm font-semibold text-muted-foreground hover:border-[#FF8C00] hover:text-[#FF8C00] transition-colors disabled:opacity-50"
+                  onClick={stopStreaming}
+                  className="w-11 h-11 rounded-full bg-[#0F172A] hover:bg-[#1e293b] flex items-center justify-center transition-colors"
                 >
-                  Upload
+                  <span className="w-3.5 h-3.5 rounded-sm bg-white block" />
                 </button>
+              ) : (
                 <button
                   type="button"
-                  onClick={() => void captureScreenshot()}
-                  disabled={isStreaming}
-                  className="rounded-xl border border-[#E6D7C5] bg-white/80 px-3 py-3 text-sm font-semibold text-muted-foreground hover:border-[#FF8C00] hover:text-[#FF8C00] transition-colors disabled:opacity-50"
+                  onClick={() => void sendMessage(input)}
+                  disabled={loading || !input.trim()}
+                  className="rounded-xl bg-[#FF8C00] px-5 py-3 text-sm font-semibold text-white hover:bg-[#e07b00] transition-colors disabled:opacity-60"
                 >
-                  Screenshot
+                  Send
                 </button>
-                <input
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  placeholder={isLesson ? "Show your working…" : "Type your question…"}
-                  disabled={isStreaming}
-                  className="flex-1 rounded-xl border border-[#E6D7C5] bg-white/80 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#FF8C00]/40 disabled:opacity-50"
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void sendMessage(input) }
-                  }}
-                />
-                <button
-                  type="button"
-                  onClick={toggleListening}
-                  disabled={isStreaming}
-                  className={`rounded-xl border px-4 py-3 text-sm font-semibold transition-colors disabled:opacity-50 ${
-                    listening
-                      ? "border-[#FF8C00] text-[#FF8C00] bg-[#FFEC99]"
-                      : "border-[#E6D7C5] text-muted-foreground bg-white/80 hover:border-[#FF8C00] hover:text-[#FF8C00]"
-                  }`}
-                >
-                  {listening ? "Listening…" : "Mic"}
-                </button>
-                {isStreaming ? (
-                  <button
-                    type="button"
-                    onClick={stopStreaming}
-                    title="Stop generating"
-                    className="w-11 h-11 rounded-full bg-[#0F172A] hover:bg-[#1e293b] flex items-center justify-center shadow-md transition-colors flex-shrink-0"
-                  >
-                    <span className="w-3.5 h-3.5 rounded-sm bg-white block" />
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => void sendMessage(input)}
-                    disabled={loading || !input.trim()}
-                    className="rounded-xl bg-[#FF8C00] px-5 py-3 text-sm font-semibold text-white shadow-sm hover:bg-[#e07b00] transition-colors disabled:opacity-60"
-                  >
-                    Send
-                  </button>
-                )}
-              </div>
-            )}
-          </section>
-
-          {/* Agent activity sidebar */}
-          <aside className="rounded-2xl border border-[#E6D7C5] bg-[#FFF4CC]/70 p-6">
-            <h2 className="text-base font-sans font-bold mb-4">Agent activity</h2>
-            {agentActivity.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Agent updates appear here once the tutor responds.</p>
-            ) : (
-              <ul className="space-y-3 max-h-[480px] overflow-y-auto">
-                {agentActivity.map((a, i) => (
-                  <li
-                    key={`${a.agent}-${a.timestamp}-${i}`}
-                    className="rounded-xl border border-[#E6D7C5] bg-white/80 px-3 py-2 text-xs"
-                  >
-                    <span className="font-semibold text-[#8B5CF6]">[{a.agent}]</span> {a.action}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </aside>
+              )}
+            </div>
+          </div>
         </div>
-      </div>
-    </main>
+      </main>
     </>
   )
 }
