@@ -1,7 +1,7 @@
 import { Router } from 'express'
 import { z } from 'zod'
 import { generateStudyPath } from '../../agents/orchestrator'
-import { readStudentMemory, updateSubjectMemory } from '../../memory/client'
+import { readStudentMemory, updateSubjectMemory, mergeStudyPath } from '../../memory/client'
 
 export const addSubjectRouter = Router()
 
@@ -22,8 +22,12 @@ const schema = z.object({
       subject: z.string(),
       date: z.string(),
     })),
-    studyHoursPerDay: z.number(),
-    learningStyle: z.enum(['examples', 'theory', 'mixed']),
+    studyHoursPerDay: z.coerce.number().default(2),
+    learningStyle: z.string().transform(val => {
+      if (val.includes('example')) return 'examples'
+      if (val.includes('theor')) return 'theory'
+      return 'mixed'
+    }),
   }),
   syllabus: z.string().optional(),
 })
@@ -51,9 +55,12 @@ addSubjectRouter.post('/add', async (req, res, next) => {
         sessionsCount: 0,
         averageScore: 0,
         examDates: extracted.examDates.filter(e => e.subject === subject.name),
-        studyPath: newNodes.filter(n => n.subject === subject.name),
       })
     }
+
+    // Merge new nodes into the top-level studyPath array
+    const existingStudyPath = student.memory?.studyPath ?? []
+    await mergeStudyPath(studentId, [...existingStudyPath, ...newNodes])
 
     res.json({
       studyPath: newNodes,

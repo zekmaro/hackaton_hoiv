@@ -52,6 +52,16 @@ export async function updateSubjectMemory(studentId: string, subject: string, up
   )
 }
 
+export async function mergeStudyPath(studentId: string, studyPath: object[]) {
+  await pool.query(
+    `UPDATE students
+     SET memory = jsonb_set(memory, '{studyPath}', $1::jsonb, true),
+         last_active = NOW()
+     WHERE id = $2`,
+    [JSON.stringify(studyPath), studentId]
+  )
+}
+
 export async function updateXPAndStreak(studentId: string, xpGained: number) {
   await pool.query(
     `UPDATE students
