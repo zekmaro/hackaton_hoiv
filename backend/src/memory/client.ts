@@ -48,7 +48,7 @@ export async function updateSubjectMemory(studentId: string, subject: string, up
      SET memory = jsonb_set(memory, $1, $2, true),
          last_active = NOW()
      WHERE id = $3`,
-    [`{${subject}}`, JSON.stringify(update), studentId]
+    [`{"${subject.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"}`, JSON.stringify(update), studentId]
   )
 }
 
