@@ -259,9 +259,6 @@ export default function Tutor() {
           if (event.type === "chunk") {
             fullText += event.text as string
             setStreamingContent(parsePhaseMarker(fullText).clean)
-          } else if (event.type === "clear") {
-            fullText = ""
-            setStreamingContent("")
           } else if (event.type === "done") {
             finalPhase = parsePhaseMarker(fullText).phase
 
