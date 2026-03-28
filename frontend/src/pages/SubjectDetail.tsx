@@ -353,36 +353,47 @@ export default function SubjectDetail() {
                   }
 
                   return (
-                    <button
-                      key={node.id}
-                      type="button"
-                      onClick={onClick}
-                      title={locked ? "Complete previous nodes first" : ""}
-                      className={`roadmap-node roadmap-node--${node.status} ${locked ? "roadmap-node--locked" : ""} text-left rounded-xl border border-[#E6D7C5] bg-white/80 p-4`}
-                    >
-                      <p className="text-[11px] font-semibold tracking-[0.07em] uppercase text-muted-foreground mb-2">
-                        {node.subject} — {node.topic}
-                      </p>
-                      <h3 className="text-[18px] font-sans font-bold text-foreground mb-3">
-                        {node.title ?? node.topic}
-                      </h3>
-                      {node.description && (
-                        <Markdown
-                          content={node.description}
-                          className="text-[13px] text-muted-foreground mb-3 markdown-content"
-                        />
-                      )}
-                      <span
-                        className={`inline-flex h-6 items-center rounded-full border px-3 text-[12px] font-medium ${
-                          statusStyles[statusLabel]
-                        }`}
+                    <div key={node.id} className="relative group">
+                      <button
+                        type="button"
+                        onClick={onClick}
+                        title={locked ? "Complete previous nodes first" : ""}
+                        className={`roadmap-node roadmap-node--${node.status} ${locked ? "roadmap-node--locked" : ""} w-full text-left rounded-xl border border-[#E6D7C5] bg-white/80 p-4`}
                       >
-                        {statusLabel}
-                      </span>
+                        <p className="text-[11px] font-semibold tracking-[0.07em] uppercase text-muted-foreground mb-2">
+                          {node.subject} — {node.topic}
+                        </p>
+                        <h3 className="text-[18px] font-sans font-bold text-foreground mb-3">
+                          {node.title ?? node.topic}
+                        </h3>
+                        {node.description && (
+                          <Markdown
+                            content={node.description}
+                            className="text-[13px] text-muted-foreground mb-3 markdown-content"
+                          />
+                        )}
+                        <span
+                          className={`inline-flex h-6 items-center rounded-full border px-3 text-[12px] font-medium ${
+                            statusStyles[statusLabel]
+                          }`}
+                        >
+                          {statusLabel}
+                        </span>
+                        {!locked && (
+                          <span className="node-hover-label">Start lesson →</span>
+                        )}
+                      </button>
                       {!locked && (
-                        <span className="node-hover-label">Start lesson →</span>
+                        <button
+                          type="button"
+                          onClick={e => { e.stopPropagation(); navigate(`/practice/${encodeURIComponent(node.id)}`) }}
+                          title="Practice this topic"
+                          className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg px-2 py-1 text-[11px] font-semibold border border-[#22C55E] text-[#15803D] bg-[rgba(34,197,94,0.08)] hover:bg-[rgba(34,197,94,0.18)]"
+                        >
+                          Practice
+                        </button>
                       )}
-                    </button>
+                    </div>
                   )
                 })}
               </div>
@@ -400,13 +411,22 @@ export default function SubjectDetail() {
                 </p>
                 <p className="text-[14px] text-muted-foreground">Starts when you are ready</p>
               </div>
-              <button
-                type="button"
-                onClick={() => navigate(`/lesson/${encodeURIComponent(nextNode.id)}`)}
-                className="h-12 px-7 rounded-[10px] bg-[#FF8C00] text-white text-[15px] font-sans font-bold hover:bg-[#e07b00] hover:-translate-y-0.5 hover:shadow-[0_6px_18px_rgba(255,140,0,0.35)] transition-all"
-              >
-                Start now
-              </button>
+              <div className="flex items-center gap-3 flex-shrink-0 max-[600px]:w-full max-[600px]:flex-col">
+                <button
+                  type="button"
+                  onClick={() => navigate(`/practice/${encodeURIComponent(nextNode.id)}`)}
+                  className="h-12 px-6 rounded-[10px] border border-[#22C55E] text-[#15803D] bg-[rgba(34,197,94,0.08)] text-[15px] font-sans font-semibold hover:bg-[rgba(34,197,94,0.15)] hover:-translate-y-0.5 transition-all max-[600px]:w-full"
+                >
+                  Practice
+                </button>
+                <button
+                  type="button"
+                  onClick={() => navigate(`/lesson/${encodeURIComponent(nextNode.id)}`)}
+                  className="h-12 px-7 rounded-[10px] bg-[#FF8C00] text-white text-[15px] font-sans font-bold hover:bg-[#e07b00] hover:-translate-y-0.5 hover:shadow-[0_6px_18px_rgba(255,140,0,0.35)] transition-all max-[600px]:w-full"
+                >
+                  Start lesson
+                </button>
+              </div>
             </section>
           )}
         </div>

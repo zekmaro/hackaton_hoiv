@@ -173,13 +173,15 @@ interface VoiceModeProps {
   initialMessages: OnboardChatMessage[]
   weakTopics?: string[]
   lastSessionNote?: string | null
+  /** Override the first message sent to the tutor on mount */
+  startMessage?: string
 }
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export default function VoiceMode({
   onClose, subject, realSubjectName, topic, mode, nodeId, studentId, apiBase, initialMessages,
-  weakTopics = [], lastSessionNote,
+  weakTopics = [], lastSessionNote, startMessage,
 }: VoiceModeProps) {
 
   const [orbState, setOrbState]             = useState<OrbState>("idle")
@@ -212,6 +214,9 @@ export default function VoiceMode({
   // text to commit to history once TTS finishes
   const pendingCommitRef     = useRef<{ id: string; content: string } | null>(null)
   const interimTranscriptRef = useRef("")
+  const currentAudioRef      = useRef<HTMLAudioElement | null>(null)
+  // set by handleInterrupt so the sendMessage catch block doesn't override state
+  const wasInterruptedRef    = useRef(false)
 
   const resolveUrl = useCallback(
     (path: string) => apiBase.endsWith("/api") ? `${apiBase}${path}` : `${apiBase}/api${path}`,
@@ -260,6 +265,8 @@ export default function VoiceMode({
     setInterimTranscript("")
 
     r.onresult = (e) => {
+      // Guard: if we were manually cancelled, ignore this event
+      if (recognitionRef.current !== r) return
       let finalText = ""
       let interimText = ""
       for (let i = e.resultIndex; i < e.results.length; i++) {
@@ -278,21 +285,22 @@ export default function VoiceMode({
       }
     }
     r.onend = () => {
-      if (recognitionRef.current === r) {
-        // Ended without a final result — if we have interim text, send it; else reset
-        const pending = interimTranscriptRef.current.trim()
-        recognitionRef.current = null
-        interimTranscriptRef.current = ""
-        setInterimTranscript("")
-        if (pending) {
-          sendMessageRef.current(pending)
-        } else {
-          setOrbState("idle")
-          setStatusText("Tap mic to speak")
-        }
+      // Guard: if we were manually cancelled, ignore
+      if (recognitionRef.current !== r) return
+      // Ended without a final result — if we have interim text, send it; else reset
+      const pending = interimTranscriptRef.current.trim()
+      recognitionRef.current = null
+      interimTranscriptRef.current = ""
+      setInterimTranscript("")
+      if (pending) {
+        sendMessageRef.current(pending)
+      } else {
+        setOrbState("idle")
+        setStatusText("Tap mic to speak")
       }
     }
     r.onerror = () => {
+      if (recognitionRef.current !== r) return
       recognitionRef.current = null
       interimTranscriptRef.current = ""
       setInterimTranscript("")
@@ -337,11 +345,12 @@ export default function VoiceMode({
 
     item.audioPromise
       .then(audio => {
-        audio.onended = () => playNextInQueue()
-        audio.onerror = () => playNextInQueue()
+        currentAudioRef.current = audio
+        audio.onended = () => { currentAudioRef.current = null; playNextInQueue() }
+        audio.onerror = () => { currentAudioRef.current = null; playNextInQueue() }
         return audio.play()
       })
-      .catch(() => playNextInQueue())
+      .catch(() => { currentAudioRef.current = null; playNextInQueue() })
   }, [startListening, commitPending])
 
   const enqueueSentence = useCallback((rawText: string) => {
@@ -361,18 +370,14 @@ export default function VoiceMode({
   // ── Interrupt ─────────────────────────────────────────────────────────────────
 
   const handleInterrupt = useCallback(() => {
+    wasInterruptedRef.current = true
+    currentAudioRef.current?.pause()
+    currentAudioRef.current = null
     ttsQueueRef.current = []
     isPlayingAudioRef.current = false
     streamDoneRef.current = false
-
-    // Commit whatever was partially revealed
-    const partial = revealedTextRef.current.trim()
-    if (partial) {
-      setChatHistory(prev => [...prev, { id: `ai-int-${Date.now()}`, role: "assistant", content: partial }])
-    }
     pendingCommitRef.current = null
     revealedTextRef.current = ""; setRevealedText("")
-
     abortControllerRef.current?.abort()
     setIsStreaming(false)
     setOrbState("listening"); setStatusText("Listening…")
@@ -380,6 +385,8 @@ export default function VoiceMode({
   }, [startListening])
 
   const handleStop = useCallback(() => {
+    currentAudioRef.current?.pause()
+    currentAudioRef.current = null
     abortControllerRef.current?.abort()
     ttsQueueRef.current = []; isPlayingAudioRef.current = false; streamDoneRef.current = false
     pendingCommitRef.current = null
@@ -395,6 +402,7 @@ export default function VoiceMode({
     const trimmed = text.trim()
     if (!trimmed) return
 
+    wasInterruptedRef.current = false
     recognitionRef.current?.stop(); recognitionRef.current = null
 
     setChatHistory(prev => [...prev, { id: `user-${Date.now()}`, role: "user", content: trimmed }])
@@ -500,6 +508,12 @@ export default function VoiceMode({
 
     } catch (err) {
       const isAbort = err instanceof Error && (err.name === "AbortError" || err.message.includes("abort"))
+      // If the user manually interrupted, handleInterrupt already handled state — don't touch it
+      if (wasInterruptedRef.current) {
+        pendingCommitRef.current = null
+        setIsStreaming(false)
+        return
+      }
       if (fullText.trim()) {
         const clean = parsePhaseMarker(fullText).clean
         setChatHistory(prev => [...prev, { id: `ai-${Date.now()}`, role: "assistant", content: clean }])
@@ -519,9 +533,10 @@ export default function VoiceMode({
   useEffect(() => {
     if (autoSentRef.current) return
     autoSentRef.current = true
-    const msg = mode === "lesson" && topic
-      ? `Start lesson on: ${topic}`
-      : `__session_start__: Greet the student warmly, then ask them what specific topic or concept they want to work on today for ${realSubjectName}. Wait for their answer before teaching anything.`
+    const msg = startMessage
+      ?? (mode === "lesson" && topic
+        ? `Start lesson on: ${topic}`
+        : `__session_start__: Greet the student warmly, then ask them what specific topic or concept they want to work on today for ${realSubjectName}. Wait for their answer before teaching anything.`)
     void sendMessage(msg)
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -692,12 +707,14 @@ export default function VoiceMode({
               if (orbState === "speaking") handleInterrupt()
               else if (orbState === "thinking") handleStop()
               else if (orbState === "listening") {
-                // Tap to finish — send whatever was captured, or cancel if nothing
+                // Tap to finish — grab pending text, cancel recognition, then send
                 const pending = interimTranscriptRef.current.trim()
-                recognitionRef.current?.stop()
+                const rec = recognitionRef.current
+                // Null the ref FIRST so onresult/onend guards fire and skip auto-send
                 recognitionRef.current = null
                 interimTranscriptRef.current = ""
                 setInterimTranscript("")
+                rec?.stop()
                 if (pending) {
                   void sendMessage(pending)
                 } else {
