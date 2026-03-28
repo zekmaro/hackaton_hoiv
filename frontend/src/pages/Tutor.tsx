@@ -155,6 +155,7 @@ export default function Tutor() {
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const messagesRef = useRef<OnboardChatMessage[]>([])
   const chatContainerRef = useRef<HTMLDivElement | null>(null)
+  const abortControllerRef = useRef<AbortController | null>(null)
   // Maps each phase to the message index where it starts (for scroll-to navigation)
   const phaseStartIndex = useRef<Partial<Record<LessonPhase, number>>>({})
 
@@ -187,6 +188,12 @@ export default function Tutor() {
     if (idx === undefined || !chatContainerRef.current) return
     const el = chatContainerRef.current.querySelector(`[data-msg-idx="${idx}"]`)
     el?.scrollIntoView({ behavior: "smooth", block: "start" })
+  }, [])
+
+  // ── Stop streaming ───────────────────────────────────────────────────────────
+
+  const stopStreaming = useCallback(() => {
+    abortControllerRef.current?.abort()
   }, [])
 
   // ── Send message ─────────────────────────────────────────────────────────────
@@ -233,10 +240,14 @@ export default function Tutor() {
         sessionHistory: currentMessages.map((m) => ({ role: m.role, content: m.content })),
       }
 
+      const abort = new AbortController()
+      abortControllerRef.current = abort
+
       const response = await fetch(resolveApiUrl("/tutor/message/stream"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
+        signal: abort.signal,
       })
 
       if (!response.ok) throw new Error("Failed to reach the tutor service.")
@@ -599,14 +610,25 @@ export default function Tutor() {
                 >
                   {listening ? "Listening…" : "Mic"}
                 </button>
-                <button
-                  type="button"
-                  onClick={() => void sendMessage(input)}
-                  disabled={loading || isStreaming || !input.trim()}
-                  className="rounded-xl bg-[#FF8C00] px-5 py-3 text-sm font-semibold text-white shadow-sm hover:bg-[#e07b00] transition-colors disabled:opacity-60"
-                >
-                  Send
-                </button>
+                {isStreaming ? (
+                  <button
+                    type="button"
+                    onClick={stopStreaming}
+                    title="Stop generating"
+                    className="w-11 h-11 rounded-full bg-[#0F172A] hover:bg-[#1e293b] flex items-center justify-center shadow-md transition-colors flex-shrink-0"
+                  >
+                    <span className="w-3.5 h-3.5 rounded-sm bg-white block" />
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => void sendMessage(input)}
+                    disabled={loading || !input.trim()}
+                    className="rounded-xl bg-[#FF8C00] px-5 py-3 text-sm font-semibold text-white shadow-sm hover:bg-[#e07b00] transition-colors disabled:opacity-60"
+                  >
+                    Send
+                  </button>
+                )}
               </div>
             )}
           </section>
