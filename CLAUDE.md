@@ -137,17 +137,11 @@ colors: {
 
 ---
 
-## mandatory: Read These Files at the Start of Every Session
+## mandatory: Read This at the Start of Every Session
 
-**Do this before writing a single line of code:**
-
-```
-1. Read docs/current-state.md   ← what is live, what is not built, full API shapes
-2. Read docs/api-contract.md    ← all endpoint contracts, request/response shapes
-3. Read shared/types.ts         ← all shared TypeScript types
-```
-
-These three files are the source of truth. If something is not in them, it does not exist yet.
+**Read `docs/AI-SYNC.md` first.** It tells you what's built, what endpoints exist,
+and which other files to read depending on what you're working on.
+Do this before writing a single line of code.
 
 ---
 
