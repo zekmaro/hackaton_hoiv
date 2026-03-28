@@ -71,7 +71,7 @@ export default function SubjectDetail() {
 
   const [roadmap, setRoadmap] = useState<RoadmapNodeWithLesson[]>([])
   const [studyMeta, setStudyMeta] = useState<SubjectDetailResponse | null>(null)
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   const resolveApiUrl = useCallback(
@@ -89,6 +89,7 @@ export default function SubjectDetail() {
   const loadStudyPath = useCallback(async () => {
     if (!apiBase || !studentId) {
       setError("Study path data is not available yet.")
+      setLoading(false)
       return
     }
 
@@ -210,6 +211,10 @@ export default function SubjectDetail() {
       {content}
     </ReactMarkdown>
   )
+
+  if (loading) {
+    return <main className="min-h-screen bg-background" />
+  }
 
   return (
     <main className="min-h-screen bg-background text-foreground px-8 md:px-12 py-12 font-sans">
