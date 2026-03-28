@@ -279,10 +279,13 @@ export default function VoiceMode({
     [apiBase]
   )
 
-  // Auto-scroll board as content arrives
+  // Auto-scroll only if user is already near the bottom (within 120px)
   useEffect(() => {
-    if (boardRef.current) {
-      boardRef.current.scrollTop = boardRef.current.scrollHeight
+    const el = boardRef.current
+    if (!el) return
+    const distFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight
+    if (distFromBottom < 120) {
+      el.scrollTop = el.scrollHeight
     }
   }, [transcript, streamingText])
 
