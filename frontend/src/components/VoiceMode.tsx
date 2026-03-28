@@ -213,10 +213,13 @@ export default function VoiceMode({
   const revealedTextRef      = useRef("")
   // text to commit to history once TTS finishes
   const pendingCommitRef     = useRef<{ id: string; content: string } | null>(null)
-  const interimTranscriptRef = useRef("")
-  const currentAudioRef      = useRef<HTMLAudioElement | null>(null)
-  // set by handleInterrupt so the sendMessage catch block doesn't override state
-  const wasInterruptedRef    = useRef(false)
+  const interimTranscriptRef    = useRef("")
+  const currentAudioRef         = useRef<HTMLAudioElement | null>(null)
+  // Incremented by handleInterrupt/sendMessage — every async callback captures this
+  // at call time and bails if it no longer matches (stale session)
+  const sessionIdRef            = useRef(0)
+  // Set by handleInterrupt so tutor auto-continues after answering user's question
+  const interruptedLectureRef   = useRef(false)
 
   const resolveUrl = useCallback(
     (path: string) => apiBase.endsWith("/api") ? `${apiBase}${path}` : `${apiBase}/api${path}`,
@@ -325,13 +328,27 @@ export default function VoiceMode({
   // ── Audio queue ───────────────────────────────────────────────────────────────
 
   const playNextInQueue = useCallback(() => {
+    // Capture session at the moment this call was made
+    const mySession = sessionIdRef.current
+
     if (ttsQueueRef.current.length === 0) {
       isPlayingAudioRef.current = false
       if (streamDoneRef.current) {
         commitPending()
-        setOrbState("listening")
-        setStatusText("Listening…")
-        startListening()
+        // In lesson mode, if user interrupted mid-lecture to ask a question,
+        // auto-continue the lecture after the answer finishes
+        if (mode === "lesson" && interruptedLectureRef.current) {
+          interruptedLectureRef.current = false
+          setTimeout(() => {
+            if (sessionIdRef.current === mySession) {
+              sendMessageRef.current("Continue the lesson from where you left off.")
+            }
+          }, 600)
+        } else {
+          setOrbState("listening")
+          setStatusText("Listening…")
+          startListening()
+        }
       }
       return
     }
@@ -339,19 +356,23 @@ export default function VoiceMode({
     setOrbState("speaking"); setStatusText("Speaking…")
 
     const item = ttsQueueRef.current.shift()!
-    // Reveal text in sync with audio
-    revealedTextRef.current += (revealedTextRef.current ? " " : "") + item.displayText
-    setRevealedText(revealedTextRef.current)
+    // Show only the current sentence — not the whole accumulated text
+    setRevealedText(item.displayText)
 
     item.audioPromise
       .then(audio => {
+        // If session changed while audio was loading, discard — don't play stale audio
+        if (sessionIdRef.current !== mySession) return
         currentAudioRef.current = audio
         audio.onended = () => { currentAudioRef.current = null; playNextInQueue() }
         audio.onerror = () => { currentAudioRef.current = null; playNextInQueue() }
         return audio.play()
       })
-      .catch(() => { currentAudioRef.current = null; playNextInQueue() })
-  }, [startListening, commitPending])
+      .catch(() => {
+        if (sessionIdRef.current !== mySession) return
+        currentAudioRef.current = null; playNextInQueue()
+      })
+  }, [startListening, commitPending, mode])
 
   const enqueueSentence = useCallback((rawText: string) => {
     const displayText = rawText.replace(/\[PHASE:[a-z_]+\]/g, "").trim()
@@ -370,7 +391,10 @@ export default function VoiceMode({
   // ── Interrupt ─────────────────────────────────────────────────────────────────
 
   const handleInterrupt = useCallback(() => {
-    wasInterruptedRef.current = true
+    // Increment session — all in-flight audio promises and catch blocks are now stale
+    sessionIdRef.current++
+    // Mark that we interrupted mid-lecture so tutor auto-continues after answering
+    if (mode === "lesson") interruptedLectureRef.current = true
     currentAudioRef.current?.pause()
     currentAudioRef.current = null
     ttsQueueRef.current = []
@@ -382,9 +406,10 @@ export default function VoiceMode({
     setIsStreaming(false)
     setOrbState("listening"); setStatusText("Listening…")
     startListening()
-  }, [startListening])
+  }, [startListening, mode])
 
   const handleStop = useCallback(() => {
+    sessionIdRef.current++
     currentAudioRef.current?.pause()
     currentAudioRef.current = null
     abortControllerRef.current?.abort()
@@ -402,7 +427,8 @@ export default function VoiceMode({
     const trimmed = text.trim()
     if (!trimmed) return
 
-    wasInterruptedRef.current = false
+    // Each sendMessage gets its own session ID — used to detect stale async callbacks
+    const mySession = ++sessionIdRef.current
     recognitionRef.current?.stop(); recognitionRef.current = null
 
     setChatHistory(prev => [...prev, { id: `user-${Date.now()}`, role: "user", content: trimmed }])
@@ -454,6 +480,8 @@ export default function VoiceMode({
           let event: Record<string, unknown>
           try { event = JSON.parse(line.slice(6)) } catch { continue }
           if (event.type === "chunk") {
+            // Stop processing if session changed (user interrupted)
+            if (sessionIdRef.current !== mySession) break
             fullText += event.text as string
             setOrbState("speaking"); setStatusText("Speaking…")
             sentenceBufferRef.current += event.text as string
@@ -507,22 +535,17 @@ export default function VoiceMode({
       }
 
     } catch (err) {
-      const isAbort = err instanceof Error && (err.name === "AbortError" || err.message.includes("abort"))
-      // If the user manually interrupted, handleInterrupt already handled state — don't touch it
-      if (wasInterruptedRef.current) {
-        pendingCommitRef.current = null
+      // Stale session: either a newer sendMessage started, or handleInterrupt incremented the id.
+      // Either way, don't touch UI state — someone else owns it now.
+      if (sessionIdRef.current !== mySession) {
         setIsStreaming(false)
         return
       }
-      if (fullText.trim()) {
-        const clean = parsePhaseMarker(fullText).clean
-        setChatHistory(prev => [...prev, { id: `ai-${Date.now()}`, role: "assistant", content: clean }])
-        revealedTextRef.current = ""; setRevealedText("")
-      }
+      const isAbort = err instanceof Error && (err.name === "AbortError" || err.message.includes("abort"))
       pendingCommitRef.current = null
       setIsStreaming(false)
       if (!isAbort) { setError("Connection lost. Tap mic to try again."); setOrbState("idle"); setStatusText("") }
-      else { setOrbState("idle"); setStatusText("Stopped — tap mic to continue") }
+      else { setOrbState("idle"); setStatusText("Tap mic to speak") }
     }
   }, [studentId, realSubjectName, mode, topic, nodeId, resolveUrl, enqueueSentence, startListening, commitPending])
 
