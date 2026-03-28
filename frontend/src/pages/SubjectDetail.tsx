@@ -2,6 +2,9 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import { useNavigate, useParams } from "react-router-dom"
 import { SUBJECT_COLORS, SUBJECT_ICONS } from "../lib/subject-colors"
 import type { RoadmapNode } from "@shared/types"
+import ReactMarkdown from "react-markdown"
+import remarkMath from "remark-math"
+import rehypeKatex from "rehype-katex"
 
 type RoadmapStatusLabel = "In progress" | "Up next" | "Locked" | "Completed"
 
@@ -168,6 +171,16 @@ export default function SubjectDetail() {
       ? Math.max(...subjectNodes.map((node) => node.weekNumber ?? 1))
       : 1)
 
+  const Markdown = ({ content, className }: { content: string; className?: string }) => (
+    <ReactMarkdown
+      className={className}
+      remarkPlugins={[remarkMath]}
+      rehypePlugins={[rehypeKatex]}
+    >
+      {content}
+    </ReactMarkdown>
+  )
+
   return (
     <main className="min-h-screen bg-background text-foreground px-8 md:px-12 py-12 font-sans">
       <div className="mb-10 flex flex-col lg:flex-row lg:items-start lg:justify-between gap-6">
@@ -304,9 +317,10 @@ export default function SubjectDetail() {
                         {node.title ?? node.topic}
                       </h3>
                       {node.description && (
-                        <p className="text-[13px] text-muted-foreground mb-3">
-                          {node.description}
-                        </p>
+                        <Markdown
+                          content={node.description}
+                          className="text-[13px] text-muted-foreground mb-3 markdown-content"
+                        />
                       )}
                       <span
                         className={`inline-flex h-6 items-center rounded-full border px-3 text-[12px] font-medium ${
