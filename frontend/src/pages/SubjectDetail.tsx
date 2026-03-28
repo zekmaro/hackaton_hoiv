@@ -364,9 +364,7 @@ export default function SubjectDetail() {
                         {statusLabel}
                       </span>
                       {!locked && (
-                        <div className="node-hover-overlay">
-                          <span>Start lesson →</span>
-                        </div>
+                        <span className="node-hover-label">Start lesson →</span>
                       )}
                     </button>
                   )

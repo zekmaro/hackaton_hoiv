@@ -289,8 +289,11 @@
     border-color: rgba(34, 197, 94, 0.4) !important;
   }
 
-  .node-hover-overlay {
+  .node-hover-label {
     position: absolute;
+    inset: auto auto 10px 10px;
+    left: auto;
+    top: auto;
     right: 10px;
     bottom: 10px;
     border-radius: 999px;
@@ -308,7 +311,7 @@
     pointer-events: none;
   }
 
-  .roadmap-node:hover .node-hover-overlay {
+  .roadmap-node:hover .node-hover-label {
     opacity: 1;
     transform: translateY(0);
   }
