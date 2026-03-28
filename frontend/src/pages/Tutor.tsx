@@ -12,31 +12,45 @@ import type {
 } from "@shared/types"
 import VoiceMode from "../components/VoiceMode"
 
-// ─── Speech recognition types ────────────────────────────────────────────────
-
 type SpeechRecognitionEventLike = {
   results: ArrayLike<ArrayLike<{ transcript: string }>>
 }
+
 type SpeechRecognitionInstance = {
-  lang: string; interimResults: boolean; maxAlternatives: number
+  lang: string
+  interimResults: boolean
+  maxAlternatives: number
   onresult: ((e: SpeechRecognitionEventLike) => void) | null
-  onend: (() => void) | null; onerror: (() => void) | null
-  start: () => void; stop: () => void
+  onend: (() => void) | null
+  onerror: (() => void) | null
+  start: () => void
+  stop: () => void
 }
+
 type SpeechRecognitionConstructor = new () => SpeechRecognitionInstance
 
-// ─── Phase types ─────────────────────────────────────────────────────────────
+type LessonMode = "lecture" | "practice"
+type PracticeState = "loading" | "question" | "submitted" | "complete"
 
-type LessonPhase = "example" | "practice" | "challenge" | "complete"
-const PHASES: LessonPhase[] = ["example", "practice", "challenge", "complete"]
-const PHASE_LABELS: Record<LessonPhase, string> = {
-  example: "Lecture",
-  practice: "Practice",
-  challenge: "Challenge",
-  complete: "Complete",
+type PracticeQuestion = {
+  taskIndex: number
+  type: "conceptual" | "application" | "debugging" | "explanation"
+  question: string
+  context?: string | null
+  xpReward?: number
 }
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+type PracticeAnswerResponse = {
+  feedback: string
+  isCorrect: boolean
+  score?: number
+  xpAwarded: number
+  correctAnswer: string | null
+  followUp: string | null
+  isLastTask: boolean
+  nextQuestion: PracticeQuestion | null
+  totalXpEarned: number
+}
 
 function parsePhaseMarker(text: string): { clean: string; phase: string | null } {
   const match = text.match(/\[PHASE:([a-z_]+)\]/)
@@ -46,17 +60,6 @@ function parsePhaseMarker(text: string): { clean: string; phase: string | null }
   }
 }
 
-function phaseFromMarker(marker: string | null): LessonPhase | null {
-  if (marker === "example_done") return "practice"
-  if (marker === "practice") return "practice"
-  if (marker === "practice_passed") return "challenge"
-  if (marker === "challenge_passed") return "complete"
-  if (marker === "complete") return "complete"
-  return null
-}
-
-// ─── Markdown renderer ────────────────────────────────────────────────────────
-
 function LessonDoc({ content, isStreaming }: { content: string; isStreaming?: boolean }) {
   return (
     <div className="lesson-prose">
@@ -64,30 +67,34 @@ function LessonDoc({ content, isStreaming }: { content: string; isStreaming?: bo
         remarkPlugins={[remarkGfm, remarkMath]}
         rehypePlugins={[rehypeKatex]}
         components={{
-          p: ({ children }) => <p className="mb-4 leading-[1.8] text-[#2d2d2d]">{children}</p>,
-          strong: ({ children }) => <strong className="font-semibold text-[#1a1a1a]">{children}</strong>,
+          p: ({ children }) => <p className="mb-4 leading-[1.8] text-[#5A3E36]">{children}</p>,
+          strong: ({ children }) => <strong className="font-semibold text-[#3F2D24]">{children}</strong>,
           em: ({ children }) => <em className="italic">{children}</em>,
           code: ({ children, className }) =>
             className?.includes("language-") ? (
               <code className={className}>{children}</code>
             ) : (
-              <code className="bg-[#F1F5F9] text-[#0F172A] px-1.5 py-0.5 rounded text-[0.88em] font-mono">
+              <code className="bg-[#F0E3D1] text-[#5A3E36] px-1.5 py-0.5 rounded text-[0.88em] font-mono">
                 {children}
               </code>
             ),
           pre: ({ children }) => (
-            <pre className="bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl p-5 overflow-x-auto text-sm font-mono my-5 text-[#0F172A]">
+            <pre className="bg-[#F8F7F4] border border-[#E6D7C5] rounded-xl p-5 overflow-x-auto text-sm font-mono my-5 text-[#5A3E36]">
               {children}
             </pre>
           ),
-          ul: ({ children }) => <ul className="list-disc pl-6 mb-4 space-y-1.5 text-[#2d2d2d]">{children}</ul>,
-          ol: ({ children }) => <ol className="list-decimal pl-6 mb-4 space-y-1.5 text-[#2d2d2d]">{children}</ol>,
+          ul: ({ children }) => <ul className="list-disc pl-6 mb-4 space-y-1.5 text-[#5A3E36]">{children}</ul>,
+          ol: ({ children }) => <ol className="list-decimal pl-6 mb-4 space-y-1.5 text-[#5A3E36]">{children}</ol>,
           li: ({ children }) => <li className="leading-relaxed">{children}</li>,
-          h1: ({ children }) => <h1 className="text-xl font-bold mb-3 mt-6 text-[#1a1a1a]">{children}</h1>,
-          h2: ({ children }) => <h2 className="text-base font-bold mb-2 mt-5 text-[#1a1a1a] uppercase tracking-wide text-xs opacity-60">{children}</h2>,
-          h3: ({ children }) => <h3 className="text-sm font-semibold mb-2 mt-4 text-[#1a1a1a]">{children}</h3>,
+          h1: ({ children }) => <h1 className="text-xl font-bold mb-3 mt-6 text-[#3F2D24]">{children}</h1>,
+          h2: ({ children }) => (
+            <h2 className="text-[18px] font-bold mb-3 mt-8 text-[#3F2D24]">
+              {children}
+            </h2>
+          ),
+          h3: ({ children }) => <h3 className="text-sm font-semibold mb-2 mt-4 text-[#3F2D24]">{children}</h3>,
           blockquote: ({ children }) => (
-            <blockquote className="border-l-4 border-[#FF8C00]/50 pl-4 text-[#555] my-4 italic">
+            <blockquote className="border-l-4 border-[#FF8C00] pl-4 text-[#6C4F3D] my-4 italic bg-[#FFF4CC]/65 py-2 rounded-r-lg">
               {children}
             </blockquote>
           ),
@@ -96,12 +103,11 @@ function LessonDoc({ content, isStreaming }: { content: string; isStreaming?: bo
               <table className="w-full border-collapse text-sm">{children}</table>
             </div>
           ),
-          thead: ({ children }) => <thead className="bg-[#F8FAFC]">{children}</thead>,
+          thead: ({ children }) => <thead className="bg-[#FFF4CC]">{children}</thead>,
           th: ({ children }) => (
-            <th className="border border-[#E2E8F0] px-4 py-2 text-left font-semibold text-xs uppercase tracking-wide">{children}</th>
+            <th className="border border-[#E6D7C5] px-4 py-2 text-left font-semibold text-xs uppercase tracking-wide text-[#6C4F3D]">{children}</th>
           ),
-          td: ({ children }) => <td className="border border-[#E2E8F0] px-4 py-2">{children}</td>,
-          hr: () => <hr className="border-[#E2E8F0] my-6" />,
+          td: ({ children }) => <td className="border border-[#E6D7C5] px-4 py-2 text-[#5A3E36]">{children}</td>,
         }}
       >
         {content}
@@ -113,41 +119,18 @@ function LessonDoc({ content, isStreaming }: { content: string; isStreaming?: bo
   )
 }
 
-// ─── Phase stepper ────────────────────────────────────────────────────────────
-
-function PhaseStepper({ current }: { current: LessonPhase }) {
-  const idx = PHASES.indexOf(current)
-  return (
-    <div className="flex items-center gap-1">
-      {PHASES.map((phase, i) => {
-        const done = i < idx
-        const active = i === idx
-        return (
-          <div key={phase} className="flex items-center gap-1">
-            <div className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold transition-all ${
-              done ? "bg-[#22C55E]/15 text-[#16a34a]"
-              : active ? "bg-[#FF8C00] text-white"
-              : "text-[#94a3b8]"
-            }`}>
-              {done && <span>✓</span>}
-              {PHASE_LABELS[phase]}
-            </div>
-            {i < PHASES.length - 1 && (
-              <div className={`w-6 h-px ${i < idx ? "bg-[#22C55E]/40" : "bg-[#E2E8F0]"}`} />
-            )}
-          </div>
-        )
-      })}
-    </div>
-  )
+const TYPE_LABELS: Record<PracticeQuestion["type"], string> = {
+  conceptual: "CONCEPT",
+  application: "APPLICATION",
+  debugging: "DEBUG THIS",
+  explanation: "EXPLAIN IT",
 }
-
-// ─── Component ────────────────────────────────────────────────────────────────
 
 export default function Tutor() {
   const { subject } = useParams<{ subject: string }>()
   const location = useLocation()
   const navigate = useNavigate()
+
   const apiBase = import.meta.env.VITE_API_URL ?? ""
   const studentId = localStorage.getItem("studentId")
 
@@ -155,119 +138,108 @@ export default function Tutor() {
   const searchParams = useMemo(() => new URLSearchParams(location.search), [location.search])
   const topic = searchParams.get("topic") ?? ""
   const nodeId = searchParams.get("nodeId") ?? ""
-  const lessonMode = (searchParams.get("lessonMode") ?? "lecture") as "lecture" | "practice"
   const mode = (searchParams.get("mode") ?? "chat") as "lesson" | "chat"
+  const lessonMode = (searchParams.get("lessonMode") ?? "lecture") as LessonMode
   const isLesson = mode === "lesson"
 
-  const realSubjectName = useMemo(() => {
-    const sp = JSON.parse(localStorage.getItem("studyPath") ?? "[]") as RoadmapNode[]
-    return sp.find((n) => n.subject.toLowerCase() === decodedSubject.toLowerCase())?.subject ?? decodedSubject
-  }, [decodedSubject])
-
-  // ── State ────────────────────────────────────────────────────────────────────
-
-  const [messages, setMessages] = useState<OnboardChatMessage[]>([])
-  const [streamingContent, setStreamingContent] = useState<string | null>(null)
-  const [agentActivity, setAgentActivity] = useState<AgentActivity[]>([])
-  const [input, setInput] = useState("")
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [totalXp, setTotalXp] = useState(0)
-  const [currentPhase, setCurrentPhase] = useState<LessonPhase>(
-    isLesson && lessonMode === "practice" ? "practice" : "example"
+  const studyPath = useMemo(
+    () => JSON.parse(localStorage.getItem("studyPath") ?? "[]") as RoadmapNode[],
+    []
   )
-  const [lessonComplete, setLessonComplete] = useState(false)
-  const [voiceModeActive, setVoiceModeActive] = useState(false)
-  const [listening, setListening] = useState(false)
+  const nodeFromStorage = useMemo(
+    () => studyPath.find((item) => item.id === nodeId),
+    [studyPath, nodeId]
+  )
 
-  // Lesson-specific: track content per phase
-  const [lectureContent, setLectureContent] = useState<string | null>(null)
-  const [lectureReady, setLectureReady] = useState(false) // lecture received, show "practice" CTA
-  const [practiceContent, setPracticeContent] = useState<string | null>(null)
-  const [feedbackContent, setFeedbackContent] = useState<string | null>(null)
-  const [challengeContent, setChallengeContent] = useState<string | null>(null)
+  const realSubjectName = useMemo(() => {
+    return nodeFromStorage?.subject ?? decodedSubject
+  }, [decodedSubject, nodeFromStorage])
 
-  // ── Refs ─────────────────────────────────────────────────────────────────────
-
-  const recognitionRef = useRef<SpeechRecognitionInstance | null>(null)
-  const autoSentRef = useRef(false)
-  const messagesEndRef = useRef<HTMLDivElement | null>(null)
-  const messagesRef = useRef<OnboardChatMessage[]>([])
-  const chatContainerRef = useRef<HTMLDivElement | null>(null)
-  const abortControllerRef = useRef<AbortController | null>(null)
-  const phaseStartIndex = useRef<Partial<Record<LessonPhase, number>>>({})
-
-  useEffect(() => { messagesRef.current = messages }, [messages])
-
-  const displayMessages = useMemo(() => {
-    if (streamingContent === null) return messages
-    return [...messages, { role: "assistant" as const, content: streamingContent }]
-  }, [messages, streamingContent])
-
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
-  }, [displayMessages])
+  const lessonTitle = useMemo(() => {
+    return nodeFromStorage?.topic ?? topic
+  }, [nodeFromStorage, topic])
 
   const resolveApiUrl = useCallback(
-    (path: string) => apiBase.endsWith("/api") ? `${apiBase}${path}` : `${apiBase}/api${path}`,
+    (path: string) => (apiBase.endsWith("/api") ? `${apiBase}${path}` : `${apiBase}/api${path}`),
     [apiBase]
   )
 
-  const stopStreaming = useCallback(() => { abortControllerRef.current?.abort() }, [])
+  const recognitionRef = useRef<SpeechRecognitionInstance | null>(null)
+  const abortControllerRef = useRef<AbortController | null>(null)
+  const freeChatAutoSentRef = useRef(false)
+  const lectureAutoStartedRef = useRef(false)
+  const practiceAutoStartedRef = useRef(false)
 
-  // ── Send message ─────────────────────────────────────────────────────────────
+  const [voiceModeActive, setVoiceModeActive] = useState(false)
+  const [listening, setListening] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
-  const sendMessage = useCallback(async (text: string) => {
-    if (!studentId || !subject) { setError("Missing student profile."); return }
-    if (!apiBase) { setError("Missing VITE_API_URL."); return }
-    const trimmed = text.trim()
-    if (!trimmed) return
+  const [messages, setMessages] = useState<OnboardChatMessage[]>([])
+  const [streamingContent, setStreamingContent] = useState<string | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [input, setInput] = useState("")
+  const [agentActivity, setAgentActivity] = useState<AgentActivity[]>([])
+  const [totalXp, setTotalXp] = useState(0)
+  const chatEndRef = useRef<HTMLDivElement | null>(null)
 
-    const currentMessages = messagesRef.current
-    const userMsgIndex = currentMessages.length
-    if (phaseStartIndex.current.example === undefined) {
-      phaseStartIndex.current.example = userMsgIndex + 1
-    }
+  const [lectureContent, setLectureContent] = useState("")
+  const [isLectureStreaming, setIsLectureStreaming] = useState(false)
+  const [isLectureLoaded, setIsLectureLoaded] = useState(false)
+  const [lectureQuestion, setLectureQuestion] = useState("")
+  const [lectureAnswer, setLectureAnswer] = useState("")
+  const [lectureAnswerLoading, setLectureAnswerLoading] = useState(false)
 
-    setMessages([...currentMessages, { role: "user", content: trimmed }])
-    setInput("")
-    setLoading(true)
-    setError(null)
+  const [practiceSessionId, setPracticeSessionId] = useState("")
+  const [practiceState, setPracticeState] = useState<PracticeState>("loading")
+  const [practiceQuestion, setPracticeQuestion] = useState<PracticeQuestion | null>(null)
+  const [taskIndex, setTaskIndex] = useState(0)
+  const [totalTasks, setTotalTasks] = useState(4)
+  const [practiceAnswer, setPracticeAnswer] = useState("")
+  const [practiceLoading, setPracticeLoading] = useState(false)
+  const [hintLoading, setHintLoading] = useState(false)
+  const [hint, setHint] = useState<string | null>(null)
+  const [feedback, setFeedback] = useState("")
+  const [isCorrect, setIsCorrect] = useState(false)
+  const [xpAwarded, setXpAwarded] = useState(0)
+  const [correctAnswer, setCorrectAnswer] = useState<string | null>(null)
+  const [followUp, setFollowUp] = useState<string | null>(null)
+  const [totalPracticeXp, setTotalPracticeXp] = useState(0)
+  const [correctCount, setCorrectCount] = useState(0)
+  const [practiceApiAvailable, setPracticeApiAvailable] = useState<boolean | null>(null)
 
-    let fullText = ""
-    let finalPhase: string | null = null
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" })
+  }, [messages, streamingContent])
 
-    try {
-      const payload: TutorMessageRequest = {
-        studentId,
-        subject: realSubjectName,
-        message: trimmed,
-        voiceMode: false,
-        mode,
-        topic: topic || undefined,
-        nodeId: nodeId || undefined,
-        sessionHistory: currentMessages.map((m) => ({ role: m.role, content: m.content })),
-      }
+  const stopStreaming = useCallback(() => {
+    abortControllerRef.current?.abort()
+    setIsLectureStreaming(false)
+    setStreamingContent(null)
+    setLoading(false)
+    setLectureAnswerLoading(false)
+    setPracticeLoading(false)
+  }, [])
 
-      const abort = new AbortController()
-      abortControllerRef.current = abort
+  const streamTutorMessage = useCallback(
+    async (payload: TutorMessageRequest): Promise<{ text: string; phase: string | null; xp: number }> => {
+      const controller = new AbortController()
+      abortControllerRef.current = controller
 
       const response = await fetch(resolveApiUrl("/tutor/message/stream"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
-        signal: abort.signal,
+        signal: controller.signal,
       })
-
-      if (!response.ok) throw new Error("Failed to reach the tutor service.")
-      if (!response.body) throw new Error("No response stream.")
-
-      setStreamingContent("")
-      setLoading(false)
+      if (!response.ok) throw new Error("Failed to reach tutor service.")
+      if (!response.body) throw new Error("No stream body.")
 
       const reader = response.body.getReader()
       const decoder = new TextDecoder()
       let buffer = ""
+      let fullText = ""
+      let finalPhase: string | null = null
+      let xp = 0
 
       while (true) {
         const { done, value } = await reader.read()
@@ -279,126 +251,451 @@ export default function Tutor() {
           const line = part.trim()
           if (!line.startsWith("data: ")) continue
           let event: Record<string, unknown>
-          try { event = JSON.parse(line.slice(6)) } catch { continue }
+          try {
+            event = JSON.parse(line.slice(6))
+          } catch {
+            continue
+          }
           if (event.type === "chunk") {
-            fullText += event.text as string
+            fullText += String(event.text ?? "")
             setStreamingContent(parsePhaseMarker(fullText).clean)
           } else if (event.type === "done") {
             finalPhase = parsePhaseMarker(fullText).phase
+            xp = Number(event.xpGained ?? 0)
             const activity = event.agentActivity as AgentActivity[] | undefined
-            if (activity?.length) setAgentActivity((prev) => [...prev, ...activity])
-            const xp = event.xpGained as number | undefined
-            if (xp && xp > 0) setTotalXp((p) => p + xp)
+            if (activity?.length) {
+              setAgentActivity((prev) => [...prev, ...activity])
+            }
           }
         }
       }
 
-      const { clean } = parsePhaseMarker(fullText)
-      const committedIndex = messagesRef.current.length + 1
-      setMessages((prev) => [...prev, { role: "assistant", content: clean }])
+      const parsed = parsePhaseMarker(fullText)
       setStreamingContent(null)
+      if (xp > 0) setTotalXp((prev) => prev + xp)
+      return { text: parsed.clean, phase: finalPhase, xp }
+    },
+    [resolveApiUrl]
+  )
 
-      // Update lesson state based on phase marker
-      if (finalPhase === "example_done") {
-        setLectureContent(clean)
-        setLectureReady(true)
-        setCurrentPhase("practice")
-      } else if (finalPhase === "practice") {
-        setPracticeContent(clean)
-        setFeedbackContent(null)
-        setCurrentPhase("practice")
-        phaseStartIndex.current.practice = committedIndex + 1
-      } else if (finalPhase === "practice_passed") {
-        setFeedbackContent(clean)
-        setChallengeContent(null)
-        setCurrentPhase("challenge")
-        phaseStartIndex.current.challenge = committedIndex + 1
-      } else if (finalPhase === "challenge_passed") {
-        setFeedbackContent(clean)
-        setCurrentPhase("complete")
-      } else if (finalPhase === "complete") {
-        setLessonComplete(true)
-        setCurrentPhase("complete")
-        if (nodeId && studentId) {
-          void fetch(resolveApiUrl("/lesson/complete"), {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ nodeId, studentId, score: 8 }),
-          })
-        }
-      } else {
-        // Feedback without phase transition (wrong answer, hint, etc.)
-        setFeedbackContent(clean)
-      }
+  const startLecture = useCallback(async () => {
+    if (!isLesson || lessonMode !== "lecture" || lectureAutoStartedRef.current) return
+    lectureAutoStartedRef.current = true
 
-    } catch (err) {
-      if (fullText.trim()) {
-        const { clean } = parsePhaseMarker(fullText)
-        setMessages((prev) => [...prev, { role: "assistant", content: clean }])
-        setFeedbackContent(clean)
-      }
-      setStreamingContent(null)
-      const isAbort = err instanceof Error && (err.name === "AbortError" || err.message.includes("abort"))
-      if (!isAbort) setError(err instanceof Error ? err.message : "Something went wrong.")
-    } finally {
-      setLoading(false)
+    if (!studentId || !nodeId || !apiBase) {
+      setError("Missing required lesson context.")
+      return
     }
-  }, [apiBase, studentId, subject, resolveApiUrl, realSubjectName, mode, topic, nodeId])
 
-  // ── Auto-send opening message ─────────────────────────────────────────────
+    setError(null)
+    setIsLectureLoaded(false)
+    setLectureContent("")
+    setIsLectureStreaming(true)
+
+    const controller = new AbortController()
+    abortControllerRef.current = controller
+
+    try {
+      const response = await fetch(resolveApiUrl("/lesson/lecture"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ nodeId, studentId }),
+        signal: controller.signal,
+      })
+
+      if (!response.ok || !response.body) {
+        throw new Error("lecture-endpoint-unavailable")
+      }
+
+      const reader = response.body.getReader()
+      const decoder = new TextDecoder()
+      let accumulated = ""
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        accumulated += decoder.decode(value, { stream: true })
+        setLectureContent(accumulated)
+      }
+
+      setLectureContent((prev) => prev.trim())
+      setIsLectureLoaded(true)
+    } catch (err) {
+      const isAbort = err instanceof Error && (err.name === "AbortError" || err.message.includes("abort"))
+      if (isAbort) {
+        setIsLectureLoaded(true)
+        return
+      }
+
+      try {
+        setLoading(true)
+        setStreamingContent("")
+        const fallback = await streamTutorMessage({
+          studentId,
+          subject: realSubjectName,
+          message: `Start lecture on: ${lessonTitle}`,
+          voiceMode: false,
+          mode: "lesson",
+          topic: lessonTitle,
+          nodeId,
+          sessionHistory: [],
+        })
+        setLectureContent(fallback.text)
+        setIsLectureLoaded(true)
+      } catch (fallbackErr) {
+        setError(fallbackErr instanceof Error ? fallbackErr.message : "Failed to generate lecture.")
+      } finally {
+        setLoading(false)
+      }
+    } finally {
+      setIsLectureStreaming(false)
+    }
+  }, [apiBase, isLesson, lessonMode, lessonTitle, nodeId, realSubjectName, resolveApiUrl, streamTutorMessage, studentId])
+
+  const askLectureQuestion = useCallback(async () => {
+    if (!studentId || !lessonTitle || !realSubjectName || !lectureQuestion.trim()) return
+    setLectureAnswerLoading(true)
+    setError(null)
+    try {
+      setStreamingContent("")
+      const result = await streamTutorMessage({
+        studentId,
+        subject: realSubjectName,
+        message: lectureQuestion.trim(),
+        voiceMode: false,
+        mode: "lesson",
+        topic: lessonTitle,
+        nodeId: nodeId || undefined,
+        sessionHistory: [],
+      })
+      setLectureAnswer(result.text)
+      setLectureQuestion("")
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not answer the question.")
+    } finally {
+      setLectureAnswerLoading(false)
+    }
+  }, [lectureQuestion, lessonTitle, nodeId, realSubjectName, streamTutorMessage, studentId])
+
+  const startPractice = useCallback(async () => {
+    if (!isLesson || lessonMode !== "practice" || practiceAutoStartedRef.current) return
+    practiceAutoStartedRef.current = true
+
+    if (!studentId || !nodeId || !apiBase) {
+      setError("Missing required lesson context.")
+      setPracticeState("question")
+      return
+    }
+
+    setError(null)
+    setPracticeState("loading")
+
+    try {
+      const response = await fetch(resolveApiUrl("/lesson/practice/start"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ nodeId, studentId }),
+      })
+
+      if (!response.ok) throw new Error("practice-endpoint-unavailable")
+
+      const data = (await response.json()) as {
+        sessionId: string
+        totalTasks: number
+        firstQuestion: PracticeQuestion
+      }
+
+      setPracticeApiAvailable(true)
+      setPracticeSessionId(data.sessionId)
+      setTotalTasks(data.totalTasks || 4)
+      setTaskIndex(0)
+      setPracticeQuestion(data.firstQuestion)
+      setPracticeState("question")
+    } catch {
+      try {
+        setPracticeApiAvailable(false)
+        setStreamingContent("")
+        const fallback = await streamTutorMessage({
+          studentId,
+          subject: realSubjectName,
+          message: `Start practice on: ${lessonTitle}`,
+          voiceMode: false,
+          mode: "lesson",
+          topic: lessonTitle,
+          nodeId,
+          sessionHistory: [],
+        })
+        setPracticeQuestion({
+          taskIndex: 0,
+          type: "conceptual",
+          question: fallback.text,
+          context: null,
+          xpReward: 30,
+        })
+        setPracticeState("question")
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to start practice.")
+        setPracticeState("question")
+      }
+    }
+  }, [apiBase, isLesson, lessonMode, lessonTitle, nodeId, realSubjectName, resolveApiUrl, streamTutorMessage, studentId])
+
+  const requestHint = useCallback(async () => {
+    if (!studentId) return
+    setHintLoading(true)
+    setError(null)
+    try {
+      if (practiceApiAvailable && practiceSessionId) {
+        const response = await fetch(resolveApiUrl("/lesson/practice/hint"), {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ sessionId: practiceSessionId, studentId }),
+        })
+        if (!response.ok) throw new Error("Hint unavailable.")
+        const data = (await response.json()) as { hint: string; xpCost?: number }
+        setHint(data.hint)
+        if (data.xpCost) setTotalXp((prev) => Math.max(0, prev - data.xpCost))
+      } else {
+        const response = await streamTutorMessage({
+          studentId,
+          subject: realSubjectName,
+          message: `Give me one short hint for this question: ${practiceQuestion?.question ?? ""}`,
+          voiceMode: false,
+          mode: "lesson",
+          topic: lessonTitle,
+          nodeId: nodeId || undefined,
+          sessionHistory: [],
+        })
+        setHint(response.text)
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not fetch hint.")
+    } finally {
+      setHintLoading(false)
+    }
+  }, [lessonTitle, nodeId, practiceApiAvailable, practiceQuestion?.question, practiceSessionId, realSubjectName, resolveApiUrl, streamTutorMessage, studentId])
+
+  const submitPracticeAnswer = useCallback(async () => {
+    if (!practiceAnswer.trim() || practiceLoading || !studentId) return
+    setPracticeLoading(true)
+    setError(null)
+    try {
+      if (practiceApiAvailable && practiceSessionId) {
+        const response = await fetch(resolveApiUrl("/lesson/practice/answer"), {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ sessionId: practiceSessionId, studentId, answer: practiceAnswer.trim() }),
+        })
+        if (!response.ok) throw new Error("Could not submit answer.")
+        const data = (await response.json()) as PracticeAnswerResponse
+        setFeedback(data.feedback)
+        setIsCorrect(data.isCorrect)
+        setXpAwarded(data.xpAwarded)
+        setCorrectAnswer(data.correctAnswer)
+        setFollowUp(data.followUp)
+        setTotalPracticeXp(data.totalXpEarned)
+        if (data.xpAwarded > 0) setTotalXp((prev) => prev + data.xpAwarded)
+        if (data.isCorrect) setCorrectCount((prev) => prev + 1)
+        setPracticeQuestion((prev) => data.nextQuestion ?? prev)
+        setPracticeState(data.isLastTask ? "complete" : "submitted")
+      } else {
+        const reply = await streamTutorMessage({
+          studentId,
+          subject: realSubjectName,
+          message: `Evaluate my practice answer for "${lessonTitle}". Question: ${practiceQuestion?.question ?? ""}\nAnswer: ${practiceAnswer.trim()}`,
+          voiceMode: false,
+          mode: "lesson",
+          topic: lessonTitle,
+          nodeId: nodeId || undefined,
+          sessionHistory: [],
+        })
+        const looksCorrect = /\b(correct|good|great|exactly|nice)\b/i.test(reply.text)
+        setFeedback(reply.text)
+        setIsCorrect(looksCorrect)
+        const awarded = looksCorrect ? 20 : 0
+        setXpAwarded(awarded)
+        setCorrectAnswer(null)
+        setFollowUp(null)
+        setTotalPracticeXp((prev) => prev + awarded)
+        if (awarded > 0) {
+          setCorrectCount((prev) => prev + 1)
+          setTotalXp((prev) => prev + awarded)
+        }
+        if (taskIndex >= totalTasks - 1) {
+          setPracticeState("complete")
+        } else {
+          setPracticeState("submitted")
+        }
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Something went wrong.")
+    } finally {
+      setPracticeLoading(false)
+      setHint(null)
+    }
+  }, [lessonTitle, nodeId, practiceAnswer, practiceApiAvailable, practiceLoading, practiceQuestion?.question, practiceSessionId, realSubjectName, resolveApiUrl, streamTutorMessage, studentId, taskIndex, totalTasks])
+
+  const goToNextPractice = useCallback(async () => {
+    setPracticeAnswer("")
+    setFeedback("")
+    setCorrectAnswer(null)
+    setFollowUp(null)
+    setHint(null)
+    setXpAwarded(0)
+    setTaskIndex((prev) => prev + 1)
+
+    if (practiceApiAvailable) {
+      setPracticeState("question")
+      return
+    }
+
+    if (!studentId) return
+    setPracticeState("loading")
+    try {
+      setStreamingContent("")
+      const next = await streamTutorMessage({
+        studentId,
+        subject: realSubjectName,
+        message: `Give me the next practice question for ${lessonTitle}. Keep it focused and concise.`,
+        voiceMode: false,
+        mode: "lesson",
+        topic: lessonTitle,
+        nodeId: nodeId || undefined,
+        sessionHistory: [],
+      })
+      setPracticeQuestion({
+        taskIndex: taskIndex + 1,
+        type: "application",
+        question: next.text,
+        context: null,
+      })
+      setPracticeState("question")
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load next question.")
+      setPracticeState("question")
+    }
+  }, [lessonTitle, nodeId, practiceApiAvailable, realSubjectName, streamTutorMessage, studentId, taskIndex])
+
+  const completeLesson = useCallback(async () => {
+    if (!studentId || !nodeId || !apiBase) return
+    try {
+      await fetch(resolveApiUrl("/lesson/complete"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ nodeId, studentId, score: Math.min(10, Math.max(1, correctCount * 2)) }),
+      })
+    } catch {
+      // Keep UI success regardless of completion endpoint response.
+    }
+  }, [apiBase, correctCount, nodeId, resolveApiUrl, studentId])
 
   useEffect(() => {
-    if (topic && !autoSentRef.current) {
-      autoSentRef.current = true
-      const lessonKickoff =
-        lessonMode === "practice"
-          ? `Start practice on: ${topic}`
-          : `Start lecture on: ${topic}`
-      void sendMessage(isLesson ? lessonKickoff : `Help me understand: ${topic}`)
-    }
-  }, [topic, isLesson, sendMessage, lessonMode])
+    if (!isLesson || lessonMode !== "lecture") return
+    void startLecture()
+  }, [isLesson, lessonMode, startLecture])
 
-  // ── Mic ───────────────────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!isLesson || lessonMode !== "practice") return
+    void startPractice()
+  }, [isLesson, lessonMode, startPractice])
+
+  useEffect(() => {
+    if (isLesson || freeChatAutoSentRef.current || !topic || !studentId || !apiBase) return
+    freeChatAutoSentRef.current = true
+    void (async () => {
+      setLoading(true)
+      setStreamingContent("")
+      try {
+        const result = await streamTutorMessage({
+          studentId,
+          subject: realSubjectName,
+          message: `Help me understand: ${topic}`,
+          voiceMode: false,
+          mode: "chat",
+          topic,
+          nodeId: nodeId || undefined,
+          sessionHistory: [],
+        })
+        setMessages([{ role: "assistant", content: result.text }])
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to start chat.")
+      } finally {
+        setLoading(false)
+      }
+    })()
+  }, [apiBase, isLesson, nodeId, realSubjectName, streamTutorMessage, studentId, topic])
+
+  useEffect(() => {
+    if (practiceState === "complete") {
+      void completeLesson()
+    }
+  }, [completeLesson, practiceState])
 
   const toggleListening = () => {
     const Ctor = (
       window.SpeechRecognition ??
       (window as typeof window & { webkitSpeechRecognition?: SpeechRecognitionConstructor }).webkitSpeechRecognition
     ) as SpeechRecognitionConstructor | undefined
-    if (!Ctor) { setError("Speech recognition not supported."); return }
-    if (!recognitionRef.current) {
-      const r = new Ctor()
-      r.lang = "en-US"; r.interimResults = false; r.maxAlternatives = 1
-      r.onresult = (e) => { const t = e.results[0]?.[0]?.transcript ?? ""; setInput((p) => p ? `${p} ${t}` : t) }
-      r.onend = () => setListening(false)
-      r.onerror = () => setListening(false)
-      recognitionRef.current = r
+
+    if (!Ctor) {
+      setError("Speech recognition is not supported in this browser.")
+      return
     }
-    if (listening) { recognitionRef.current.stop(); setListening(false) }
-    else { setError(null); recognitionRef.current.start(); setListening(true) }
+
+    if (!recognitionRef.current) {
+      const recognition = new Ctor()
+      recognition.lang = "en-US"
+      recognition.interimResults = false
+      recognition.maxAlternatives = 1
+      recognition.onresult = (event) => {
+        const transcript = event.results[0]?.[0]?.transcript ?? ""
+        setInput((prev) => (prev ? `${prev} ${transcript}` : transcript))
+      }
+      recognition.onend = () => setListening(false)
+      recognition.onerror = () => setListening(false)
+      recognitionRef.current = recognition
+    }
+
+    if (listening) {
+      recognitionRef.current.stop()
+      setListening(false)
+      return
+    }
+
+    setError(null)
+    recognitionRef.current.start()
+    setListening(true)
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
+  const sendChatMessage = useCallback(async () => {
+    if (!input.trim() || !studentId) return
+    const userMessage = input.trim()
+    setMessages((prev) => [...prev, { role: "user", content: userMessage }])
+    setInput("")
+    setLoading(true)
+    setError(null)
+    try {
+      setStreamingContent("")
+      const result = await streamTutorMessage({
+        studentId,
+        subject: realSubjectName,
+        message: userMessage,
+        voiceMode: false,
+        mode: "chat",
+        topic: topic || undefined,
+        nodeId: nodeId || undefined,
+        sessionHistory: messages,
+      })
+      setMessages((prev) => [...prev, { role: "assistant", content: result.text }])
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Something went wrong.")
+    } finally {
+      setLoading(false)
+      setStreamingContent(null)
+    }
+  }, [input, messages, nodeId, realSubjectName, streamTutorMessage, studentId, topic])
 
-  const isStreaming = streamingContent !== null
-  const currentPhaseIndex = PHASES.indexOf(currentPhase)
-
-  // ── LESSON MODE ───────────────────────────────────────────────────────────────
-
-  if (isLesson) {
-    // Lecture content always stays visible once received — phase change never hides it
-    const mainContent = isStreaming && !lectureContent
-      ? streamingContent!
-      : lectureContent ?? (isStreaming ? streamingContent! : null)
-
-    // The problem for practice/challenge
-    const activeProblem = currentPhase === "challenge"
-      ? (challengeContent ?? practiceContent)
-      : practiceContent
-
-    // Whether we're waiting for the first response
-    const awaitingLecture = loading && !lectureContent && !isStreaming
-
+  if (isLesson && lessonMode === "lecture") {
     return (
       <>
         {voiceModeActive && (
@@ -406,261 +703,295 @@ export default function Tutor() {
             onClose={() => setVoiceModeActive(false)}
             subject={decodedSubject}
             realSubjectName={realSubjectName}
-            topic={topic}
+            topic={lessonTitle}
             mode={mode}
             nodeId={nodeId}
             studentId={studentId ?? ""}
             apiBase={apiBase}
-            initialMessages={messages}
+            initialMessages={lectureContent ? [{ role: "assistant", content: lectureContent }] : []}
           />
         )}
-
-        <div className="min-h-screen bg-[#FAFAF8] font-sans">
-
-          {/* Sticky top bar */}
-          <div className="sticky top-0 z-20 bg-white/95 backdrop-blur border-b border-[#E2E8F0] px-6 py-3">
-            <div className="mx-auto max-w-4xl flex items-center justify-between gap-4">
+        <main className="min-h-screen bg-[#F8F7F4] font-sans text-[#5A3E36]">
+          <div className="sticky top-0 z-20 bg-[#F8F7F4]/95 backdrop-blur border-b border-[#E6D7C5] px-6 py-3">
+            <div className="mx-auto max-w-4xl flex items-center justify-between gap-3">
               <button
                 type="button"
-                onClick={() => navigate(`/dashboard/${encodeURIComponent(decodedSubject)}`)}
-                className="text-sm text-[#64748b] hover:text-[#1a1a1a] transition-colors flex items-center gap-1.5"
+                onClick={() => navigate(`/lesson/${encodeURIComponent(nodeId)}`)}
+                className="text-sm text-[#6C4F3D] hover:text-[#5A3E36]"
               >
-                ← {realSubjectName}
+                ← Back to lesson
               </button>
-
-              <PhaseStepper current={currentPhase} />
-
-              <div className="flex items-center gap-3">
-                {totalXp > 0 && (
-                  <span className="text-xs font-bold text-[#B45309] bg-[#FEF3C7] px-2.5 py-1 rounded-full">
-                    +{totalXp} XP
-                  </span>
-                )}
-                <button
-                  type="button"
-                  onClick={() => setVoiceModeActive(true)}
-                  className="flex items-center gap-1.5 rounded-full bg-[#0F172A] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#1e293b] transition-colors"
-                >
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
-                    <path d="M19 10v2a7 7 0 0 1-14 0v-2H3v2a9 9 0 0 0 8 8.94V23h-3v2h8v-2h-3v-2.06A9 9 0 0 0 21 12v-2h-2z" />
-                  </svg>
-                  Voice
-                </button>
+              <div className="flex items-center gap-2">
+                <span className="rounded-full bg-[#FF8C00] text-white px-3 py-1 text-xs font-bold">Lecture</span>
+                <span className="text-[#9CA3AF] text-xs">→</span>
+                <span className="rounded-full bg-[#FFF4CC] text-[#9CA3AF] px-3 py-1 text-xs font-semibold">Practice</span>
               </div>
+              <button
+                type="button"
+                onClick={() => setVoiceModeActive(true)}
+                className="rounded-full bg-[#0F172A] px-4 py-2 text-sm font-semibold text-white hover:bg-[#1e293b]"
+              >
+                Voice mode
+              </button>
             </div>
           </div>
 
-          {/* Page content */}
-          <div className="mx-auto max-w-3xl px-6 pt-10 pb-40">
+          <section className="mx-auto max-w-3xl px-6 py-10 pb-40">
+            <p className="text-[11px] font-semibold tracking-[0.1em] uppercase text-[#9CA3AF] mb-2">Lecture</p>
+            <h1 className="text-4xl font-extrabold leading-tight text-[#5A3E36] mb-7">{lessonTitle}</h1>
 
-            {/* Topic heading */}
-            <div className="mb-10">
-              <p className="text-xs font-semibold uppercase tracking-widest text-[#94a3b8] mb-2">
-                {PHASE_LABELS[currentPhase]}
-              </p>
-              <h1 className="text-3xl font-bold text-[#1a1a1a] leading-tight">{topic}</h1>
-            </div>
+            <LessonDoc content={lectureContent} isStreaming={isLectureStreaming} />
 
-            {/* Loading skeleton */}
-            {awaitingLecture && (
-              <div className="space-y-4 animate-pulse">
-                <div className="h-4 bg-[#E2E8F0] rounded w-3/4" />
-                <div className="h-4 bg-[#E2E8F0] rounded w-full" />
-                <div className="h-4 bg-[#E2E8F0] rounded w-5/6" />
-                <div className="h-4 bg-[#E2E8F0] rounded w-2/3" />
-                <div className="h-32 bg-[#E2E8F0] rounded-xl w-full mt-6" />
-                <div className="h-4 bg-[#E2E8F0] rounded w-full" />
-                <div className="h-4 bg-[#E2E8F0] rounded w-4/5" />
-              </div>
-            )}
-
-            {/* Lecture content (phase 1 + streaming) */}
-            {(mainContent !== null || isStreaming) && currentPhase !== "complete" && (
-              <div ref={chatContainerRef}>
-                <LessonDoc
-                  content={isStreaming ? streamingContent! : (mainContent ?? "")}
-                  isStreaming={isStreaming}
-                />
-              </div>
-            )}
-
-            {/* Practice / Challenge area */}
-            {(currentPhase === "practice" || currentPhase === "challenge") && !isStreaming && (
-              <div className="mt-10 space-y-6">
-                {/* Problem card */}
-                {(isStreaming ? null : (currentPhase === "challenge" ? challengeContent : practiceContent) ?? (isStreaming ? streamingContent : null)) === null && loading ? null : (
-                  activeProblem || isStreaming ? (
-                    <div className="rounded-2xl bg-[#0F172A] px-7 py-6">
-                      <p className="text-xs font-bold uppercase tracking-widest text-[#64748b] mb-4">
-                        {currentPhase === "challenge" ? "Challenge Problem" : "Practice Problem"}
-                      </p>
-                      <div className="text-white">
-                        <LessonDoc content={activeProblem ?? ""} />
-                      </div>
-                    </div>
-                  ) : null
-                )}
-
-                {/* Feedback card */}
-                {feedbackContent && (
-                  <div className="rounded-2xl border-l-4 border-[#FF8C00] bg-[#FFF7ED] px-6 py-5">
-                    <p className="text-xs font-bold uppercase tracking-widest text-[#FF8C00] mb-3">Feedback</p>
-                    <LessonDoc content={feedbackContent} />
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Completion screen */}
-            {currentPhase === "complete" && lessonComplete && (
-              <div className="mt-8 text-center space-y-6">
-                <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-[#22C55E]/15 text-4xl">
-                  🎓
-                </div>
-                <div>
-                  <h2 className="text-2xl font-bold text-[#1a1a1a] mb-2">Lesson complete</h2>
-                  <p className="text-[#64748b]">You've mastered <strong>{topic}</strong></p>
-                  {totalXp > 0 && (
-                    <p className="text-[#B45309] font-bold mt-1">+{totalXp} XP earned</p>
-                  )}
-                </div>
-                {feedbackContent && (
-                  <div className="text-left bg-white border border-[#E2E8F0] rounded-2xl px-6 py-5 max-w-xl mx-auto">
-                    <p className="text-xs font-bold uppercase tracking-widest text-[#94a3b8] mb-3">Summary</p>
-                    <LessonDoc content={feedbackContent} />
-                  </div>
-                )}
-                <button
-                  type="button"
-                  onClick={() => navigate(`/dashboard/${encodeURIComponent(decodedSubject)}`)}
-                  className="inline-flex items-center gap-2 rounded-full bg-[#22C55E] px-7 py-3 font-bold text-white hover:bg-green-600 transition-colors text-sm"
-                >
-                  Back to roadmap →
-                </button>
+            {isLectureStreaming && (
+              <div className="mt-8 flex items-center gap-2 text-sm text-[#9CA3AF]">
+                <span className="text-[#FF8C00] animate-pulse">✦</span>
+                Writing lecture...
               </div>
             )}
 
             {error && (
-              <div className="mt-4 text-sm text-[#B91C1C] bg-red-50 px-4 py-3 rounded-xl">{error}</div>
+              <div className="mt-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                {error}
+              </div>
             )}
+          </section>
 
-            <div ref={messagesEndRef} />
-          </div>
+          {isLectureStreaming && (
+            <button
+              type="button"
+              onClick={stopStreaming}
+              className="fixed bottom-20 right-8 z-30 w-11 h-11 rounded-full bg-[#111827] text-white shadow-lg flex items-center justify-center"
+              title="Stop generating"
+            >
+              ■
+            </button>
+          )}
 
-          {/* Fixed bottom input bar */}
-          {!lessonComplete && (
-            <div className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur border-t border-[#E2E8F0] px-6 py-4">
-              <div className="mx-auto max-w-3xl">
-
-                {/* Phase 1 complete — offer to move to practice */}
-                {currentPhase === "practice" && lectureReady && !practiceContent && !loading && (
-                  <div className="flex items-center gap-3">
-                    <input
-                      value={input}
-                      onChange={(e) => setInput(e.target.value)}
-                      placeholder="Ask a question about the lecture…"
-                      className="flex-1 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#FF8C00]/30"
-                      onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void sendMessage(input) } }}
-                    />
+          <div className="fixed bottom-0 left-0 right-0 z-20 bg-[#F8F7F4]/95 backdrop-blur border-t border-[#E6D7C5] px-6 py-4">
+            <div className="mx-auto max-w-3xl">
+              {lectureAnswer && (
+                <div className="mb-3 rounded-xl border border-[#E6D7C5] bg-white px-4 py-3 text-sm text-[#5A3E36]">
+                  <div className="flex items-start justify-between gap-3">
+                    <LessonDoc content={lectureAnswer} />
                     <button
                       type="button"
-                      onClick={() => void sendMessage(input.trim() || "I understand the lecture. Give me a practice problem.")}
-                      className="rounded-xl bg-[#FF8C00] px-5 py-3 text-sm font-bold text-white hover:bg-[#e07b00] transition-colors whitespace-nowrap"
+                      onClick={() => setLectureAnswer("")}
+                      className="text-xs text-[#9CA3AF] hover:text-[#5A3E36]"
                     >
-                      {input.trim() ? "Ask" : "Practice problems →"}
+                      Close
                     </button>
                   </div>
-                )}
-
-                {/* Practice / Challenge — answer submission */}
-                {(currentPhase === "practice" || currentPhase === "challenge") && (practiceContent || challengeContent || feedbackContent) && (
-                  <div className="space-y-2">
-                    {feedbackContent && (
-                      <p className="text-xs text-[#94a3b8] font-medium px-1">
-                        {currentPhase === "practice" ? "Refine your answer or ask for a hint" : "Attempt the challenge"}
-                      </p>
-                    )}
-                    <div className="flex items-end gap-2">
-                      <textarea
-                        value={input}
-                        onChange={(e) => setInput(e.target.value)}
-                        placeholder={currentPhase === "challenge" ? "Write your solution to the challenge…" : "Write your solution…"}
-                        rows={3}
-                        disabled={isStreaming}
-                        className="flex-1 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#FF8C00]/30 resize-none disabled:opacity-50"
-                        onKeyDown={(e) => { if (e.key === "Enter" && e.ctrlKey) { e.preventDefault(); void sendMessage(input) } }}
-                      />
-                      <div className="flex flex-col gap-2">
-                        <button
-                          type="button"
-                          onClick={() => void sendMessage("Give me a hint")}
-                          disabled={isStreaming || loading}
-                          className="rounded-xl border border-[#E2E8F0] bg-white px-4 py-2.5 text-xs font-semibold text-[#64748b] hover:border-[#FF8C00] hover:text-[#FF8C00] transition-colors disabled:opacity-50"
-                        >
-                          Hint
-                        </button>
-                        {isStreaming ? (
-                          <button
-                            type="button"
-                            onClick={stopStreaming}
-                            className="w-10 h-10 rounded-full bg-[#0F172A] hover:bg-[#1e293b] flex items-center justify-center transition-colors"
-                          >
-                            <span className="w-3 h-3 rounded-sm bg-white block" />
-                          </button>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() => void sendMessage(input)}
-                            disabled={loading || !input.trim()}
-                            className="rounded-xl bg-[#FF8C00] px-4 py-2.5 text-xs font-bold text-white hover:bg-[#e07b00] transition-colors disabled:opacity-50"
-                          >
-                            Submit
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                    <p className="text-[10px] text-[#94a3b8] px-1">Ctrl+Enter to submit</p>
-                  </div>
-                )}
-
-                {/* Loading while streaming */}
-                {(loading && !isStreaming) && (
-                  <div className="flex items-center gap-2 text-sm text-[#94a3b8] py-2">
-                    <div className="flex gap-1">
-                      <span className="w-1.5 h-1.5 rounded-full bg-[#94a3b8] animate-bounce" style={{ animationDelay: "0ms" }} />
-                      <span className="w-1.5 h-1.5 rounded-full bg-[#94a3b8] animate-bounce" style={{ animationDelay: "150ms" }} />
-                      <span className="w-1.5 h-1.5 rounded-full bg-[#94a3b8] animate-bounce" style={{ animationDelay: "300ms" }} />
-                    </div>
-                    Thinking…
-                  </div>
-                )}
-
-                {/* Streaming — show stop button */}
-                {isStreaming && currentPhase === "example" && (
-                  <div className="flex items-center gap-3">
-                    <span className="text-sm text-[#94a3b8] flex items-center gap-2">
-                      <span className="w-1.5 h-1.5 rounded-full bg-[#FF8C00] animate-pulse" />
-                      Writing lecture…
-                    </span>
-                    <button
-                      type="button"
-                      onClick={stopStreaming}
-                      className="w-9 h-9 rounded-full bg-[#0F172A] hover:bg-[#1e293b] flex items-center justify-center transition-colors ml-auto"
-                    >
-                      <span className="w-3 h-3 rounded-sm bg-white block" />
-                    </button>
-                  </div>
-                )}
+                </div>
+              )}
+              <div className="flex items-center gap-3">
+                <input
+                  value={lectureQuestion}
+                  onChange={(event) => setLectureQuestion(event.target.value)}
+                  placeholder="Ask a question about the lecture..."
+                  className="flex-1 h-11 rounded-xl border border-[#E6D7C5] bg-white px-4 text-sm focus:outline-none focus:ring-2 focus:ring-[#FF8C00]/25"
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault()
+                      void askLectureQuestion()
+                    }
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() => void askLectureQuestion()}
+                  disabled={lectureAnswerLoading || !lectureQuestion.trim()}
+                  className="h-11 px-5 rounded-xl border border-[#E6D7C5] bg-white text-[#6C4F3D] text-sm font-semibold disabled:opacity-60"
+                >
+                  {lectureAnswerLoading ? "Asking..." : "Ask"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => navigate(`/lesson/${encodeURIComponent(nodeId)}/practice`)}
+                  disabled={!isLectureLoaded}
+                  className="h-11 px-6 rounded-xl bg-[#FF8C00] text-white text-sm font-bold hover:bg-[#E67700] disabled:opacity-60"
+                >
+                  Practice problems →
+                </button>
               </div>
             </div>
-          )}
-        </div>
+          </div>
+        </main>
       </>
     )
   }
 
-  // ── FREE CHAT MODE ────────────────────────────────────────────────────────────
+  if (isLesson && lessonMode === "practice") {
+    return (
+      <main className="min-h-screen bg-[#F8F7F4] font-sans text-[#5A3E36]">
+        <div className="sticky top-0 z-20 bg-[#F8F7F4]/95 backdrop-blur border-b border-[#E6D7C5] px-6 py-3">
+          <div className="mx-auto max-w-4xl flex items-center justify-between gap-3">
+            <button
+              type="button"
+              onClick={() => navigate(`/lesson/${encodeURIComponent(nodeId)}`)}
+              className="text-sm text-[#6C4F3D] hover:text-[#5A3E36]"
+            >
+              ← Back to lesson
+            </button>
+            <div className="flex items-center gap-2">
+              <span className="rounded-full bg-[#FFF4CC] text-[#9CA3AF] px-3 py-1 text-xs font-semibold">Lecture</span>
+              <span className="text-[#9CA3AF] text-xs">→</span>
+              <span className="rounded-full bg-[#FF8C00] text-white px-3 py-1 text-xs font-bold">Practice</span>
+            </div>
+            <span className="text-xs text-[#6C4F3D] font-semibold">
+              {Math.min(taskIndex + 1, totalTasks)} / {totalTasks}
+            </span>
+          </div>
+        </div>
+
+        <section className="mx-auto max-w-3xl px-6 py-10">
+          <p className="text-[11px] font-semibold tracking-[0.1em] uppercase text-[#9CA3AF] mb-2">Practice</p>
+          <h1 className="text-4xl font-extrabold leading-tight text-[#5A3E36] mb-8">{lessonTitle}</h1>
+
+          <div className="mb-8 flex items-center gap-2">
+            {Array.from({ length: totalTasks }).map((_, index) => {
+              const isDone = index < taskIndex
+              const isActive = index === taskIndex && practiceState !== "complete"
+              const cls = isDone
+                ? "bg-[#22C55E]"
+                : isActive
+                  ? "bg-[#FF8C00]"
+                  : "bg-[#E6D7C5]"
+              return <span key={index} className={`h-2.5 w-2.5 rounded-full ${cls}`} />
+            })}
+          </div>
+
+          {practiceState === "loading" && (
+            <div className="rounded-2xl border border-[#E6D7C5] bg-white p-8 text-[#6C4F3D]">
+              Preparing your practice session...
+            </div>
+          )}
+
+          {(practiceState === "question" || practiceState === "submitted") && practiceQuestion && (
+            <div className="space-y-4">
+              <div className="rounded-2xl border border-[#E6D7C5] bg-white p-8">
+                <span className="text-[11px] font-semibold tracking-[0.08em] uppercase text-[#9CA3AF]">
+                  {TYPE_LABELS[practiceQuestion.type]}
+                </span>
+                <h2 className="mt-3 text-2xl font-bold text-[#5A3E36] leading-snug">
+                  {practiceQuestion.question}
+                </h2>
+                {practiceQuestion.context && (
+                  <div className="mt-5 rounded-xl border border-[#E6D7C5] bg-[#F8F7F4] p-4 text-sm overflow-x-auto">
+                    <pre className="font-mono whitespace-pre-wrap text-[#5A3E36]">{practiceQuestion.context}</pre>
+                  </div>
+                )}
+              </div>
+
+              {practiceState === "question" && (
+                <div className="rounded-2xl border border-[#E6D7C5] bg-white p-6">
+                  <textarea
+                    rows={4}
+                    value={practiceAnswer}
+                    onChange={(event) => setPracticeAnswer(event.target.value)}
+                    placeholder="Type your answer here..."
+                    className="w-full rounded-xl border border-[#E6D7C5] bg-[#F8F7F4] px-4 py-3 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-[#FF8C00]/25"
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" && event.ctrlKey) {
+                        event.preventDefault()
+                        void submitPracticeAnswer()
+                      }
+                    }}
+                  />
+                  {hint && (
+                    <div className="mt-4 rounded-xl border border-[#E6D7C5] bg-[#FFF4CC]/60 px-4 py-3">
+                      <p className="text-[11px] font-semibold tracking-[0.08em] uppercase text-[#6C4F3D] mb-1">Hint</p>
+                      <p className="text-sm text-[#5A3E36]">{hint}</p>
+                    </div>
+                  )}
+                  <div className="mt-4 flex items-center justify-between gap-3">
+                    <button
+                      type="button"
+                      onClick={() => void requestHint()}
+                      disabled={hintLoading || Boolean(hint)}
+                      className="h-10 px-4 rounded-xl border border-[#E6D7C5] bg-white text-sm font-semibold text-[#6C4F3D] disabled:opacity-60"
+                    >
+                      {hintLoading ? "..." : hint ? "Hint shown" : "Hint (-10 XP)"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void submitPracticeAnswer()}
+                      disabled={!practiceAnswer.trim() || practiceLoading}
+                      className="h-10 px-5 rounded-xl bg-[#FF8C00] text-white text-sm font-bold hover:bg-[#E67700] disabled:opacity-60"
+                    >
+                      {practiceLoading ? "Checking..." : "Submit answer →"}
+                    </button>
+                  </div>
+                  <p className="mt-2 text-[11px] text-[#9CA3AF]">Ctrl + Enter to submit</p>
+                </div>
+              )}
+
+              {practiceState === "submitted" && (
+                <div className={`rounded-2xl border p-6 ${isCorrect ? "border-green-200 bg-green-50/70" : "border-orange-200 bg-orange-50/70"}`}>
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className={`text-lg font-bold ${isCorrect ? "text-green-700" : "text-orange-700"}`}>
+                      {isCorrect ? "✓" : "✗"}
+                    </span>
+                    <p className={`font-bold ${isCorrect ? "text-green-700" : "text-orange-700"}`}>
+                      {isCorrect ? "Correct" : "Not quite"}
+                    </p>
+                    {xpAwarded > 0 && <p className="text-sm font-semibold text-[#B45309]">+{xpAwarded} XP</p>}
+                  </div>
+                  <LessonDoc content={feedback} />
+                  {correctAnswer && (
+                    <div className="mt-3 rounded-xl border border-[#E6D7C5] bg-white px-4 py-3">
+                      <p className="text-[11px] font-semibold tracking-[0.08em] uppercase text-[#9CA3AF] mb-1">Model answer</p>
+                      <p className="text-sm text-[#5A3E36]">{correctAnswer}</p>
+                    </div>
+                  )}
+                  {followUp && (
+                    <div className="mt-3 rounded-xl border border-[#E6D7C5] bg-white px-4 py-3">
+                      <p className="text-[11px] font-semibold tracking-[0.08em] uppercase text-[#9CA3AF] mb-1">Bonus question</p>
+                      <p className="text-sm text-[#5A3E36]">{followUp}</p>
+                    </div>
+                  )}
+                  <div className="mt-4 flex justify-end">
+                    <button
+                      type="button"
+                      onClick={() => void goToNextPractice()}
+                      className="h-10 px-5 rounded-xl bg-[#FF8C00] text-white text-sm font-bold hover:bg-[#E67700]"
+                    >
+                      {taskIndex >= totalTasks - 1 ? "See results →" : "Next question →"}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {practiceState === "complete" && (
+            <div className="rounded-2xl border border-[#E6D7C5] bg-white p-10 text-center">
+              <p className="text-5xl mb-3">🎓</p>
+              <h2 className="text-3xl font-extrabold text-[#5A3E36] mb-2">Practice complete</h2>
+              <p className="text-[#6C4F3D]">You solved {correctCount} of {totalTasks} tasks.</p>
+              <p className="text-[#B45309] font-bold mt-2">+{totalPracticeXp} XP earned</p>
+              <button
+                type="button"
+                onClick={() => navigate(`/dashboard/${encodeURIComponent(realSubjectName)}`)}
+                className="mt-6 h-11 px-6 rounded-xl bg-[#FF8C00] text-white text-sm font-bold hover:bg-[#E67700]"
+              >
+                Back to roadmap
+              </button>
+            </div>
+          )}
+
+          {error && (
+            <div className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              {error}
+            </div>
+          )}
+        </section>
+      </main>
+    )
+  }
+
+  const displayMessages = streamingContent
+    ? [...messages, { role: "assistant" as const, content: streamingContent }]
+    : messages
 
   return (
     <>
@@ -677,9 +1008,9 @@ export default function Tutor() {
           initialMessages={messages}
         />
       )}
+
       <main className="min-h-screen bg-background px-6 py-16 text-foreground font-sans">
         <div className="mx-auto max-w-4xl">
-
           <div className="mb-8">
             <button
               type="button"
@@ -704,10 +1035,6 @@ export default function Tutor() {
                   onClick={() => setVoiceModeActive(true)}
                   className="flex items-center gap-2 rounded-full bg-[#0F172A] px-4 py-2 text-sm font-semibold text-white hover:bg-[#1e293b] transition-colors"
                 >
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
-                    <path d="M19 10v2a7 7 0 0 1-14 0v-2H3v2a9 9 0 0 0 8 8.94V23h-3v2h8v-2h-3v-2.06A9 9 0 0 0 21 12v-2h-2z" />
-                  </svg>
                   Voice mode
                 </button>
               </div>
@@ -715,22 +1042,16 @@ export default function Tutor() {
           </div>
 
           <div className="rounded-2xl border border-[#E6D7C5] bg-[#FFF4CC]/60 p-6 flex flex-col gap-4 min-h-[500px]">
-            <div
-              ref={chatContainerRef}
-              className="flex-1 space-y-5 overflow-y-auto max-h-[600px] pr-1"
-            >
-              {displayMessages.length === 0 && !loading && !isStreaming && (
+            <div className="flex-1 space-y-5 overflow-y-auto max-h-[600px] pr-1">
+              {displayMessages.length === 0 && !loading && !streamingContent && (
                 <p className="text-sm text-muted-foreground p-2">Ask anything — this is office hours.</p>
               )}
+
               {displayMessages.map((msg, index) => (
-                <div
-                  key={index}
-                  data-msg-idx={index}
-                  className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
-                >
+                <div key={index} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
                   {msg.role === "assistant" ? (
                     <div className="w-full bg-white rounded-2xl border border-[#E6D7C5] px-5 py-4 text-sm shadow-sm">
-                      <LessonDoc content={msg.content} isStreaming={isStreaming && index === displayMessages.length - 1} />
+                      <LessonDoc content={msg.content} isStreaming={Boolean(streamingContent && index === displayMessages.length - 1)} />
                     </div>
                   ) : (
                     <div className="max-w-[70%] rounded-2xl bg-[#0F172A] px-4 py-3 text-sm text-white leading-relaxed">
@@ -739,14 +1060,15 @@ export default function Tutor() {
                   )}
                 </div>
               ))}
-              {loading && !isStreaming && (
+
+              {loading && !streamingContent && (
                 <div className="flex gap-1 px-2 py-3">
                   <span className="w-1.5 h-1.5 rounded-full bg-[#94a3b8] animate-bounce" style={{ animationDelay: "0ms" }} />
                   <span className="w-1.5 h-1.5 rounded-full bg-[#94a3b8] animate-bounce" style={{ animationDelay: "150ms" }} />
                   <span className="w-1.5 h-1.5 rounded-full bg-[#94a3b8] animate-bounce" style={{ animationDelay: "300ms" }} />
                 </div>
               )}
-              <div ref={messagesEndRef} />
+              <div ref={chatEndRef} />
             </div>
 
             {error && <p className="text-sm text-[#B91C1C]">{error}</p>}
@@ -754,23 +1076,28 @@ export default function Tutor() {
             <div className="flex items-center gap-2">
               <input
                 value={input}
-                onChange={(e) => setInput(e.target.value)}
-                placeholder="Ask your tutor anything…"
-                disabled={isStreaming}
+                onChange={(event) => setInput(event.target.value)}
+                placeholder="Ask your tutor anything..."
+                disabled={Boolean(streamingContent)}
                 className="flex-1 rounded-xl border border-[#E6D7C5] bg-white px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#FF8C00]/30 disabled:opacity-50"
-                onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void sendMessage(input) } }}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" && !event.shiftKey) {
+                    event.preventDefault()
+                    void sendChatMessage()
+                  }
+                }}
               />
               <button
                 type="button"
                 onClick={toggleListening}
-                disabled={isStreaming}
+                disabled={Boolean(streamingContent)}
                 className={`rounded-xl border px-4 py-3 text-sm font-semibold transition-colors disabled:opacity-50 ${
                   listening ? "border-[#FF8C00] text-[#FF8C00] bg-[#FEF3C7]" : "border-[#E6D7C5] text-muted-foreground bg-white hover:border-[#FF8C00]"
                 }`}
               >
                 {listening ? "●" : "Mic"}
               </button>
-              {isStreaming ? (
+              {streamingContent ? (
                 <button
                   type="button"
                   onClick={stopStreaming}
@@ -781,7 +1108,7 @@ export default function Tutor() {
               ) : (
                 <button
                   type="button"
-                  onClick={() => void sendMessage(input)}
+                  onClick={() => void sendChatMessage()}
                   disabled={loading || !input.trim()}
                   className="rounded-xl bg-[#FF8C00] px-5 py-3 text-sm font-semibold text-white hover:bg-[#e07b00] transition-colors disabled:opacity-60"
                 >
