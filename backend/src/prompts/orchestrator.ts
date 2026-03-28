@@ -45,7 +45,7 @@ Rules for generating the roadmap:
 
 Return a JSON array of RoadmapNode objects with these exact fields:
 - id: string (unique slug, e.g. "math-integration-1")
-- subject: string (match the subject name from profile)
+- subject: string (EXACT subject name from profile e.g. "Calculus 1" — never include topic details here)
 - topic: string (specific — "Integration by Parts" not just "Integration")
 - status: "available" | "locked"
 - priority: "low" | "medium" | "high" | "urgent"
