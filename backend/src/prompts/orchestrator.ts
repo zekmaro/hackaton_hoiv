@@ -40,7 +40,11 @@ Rules for generating the roadmap:
 - First node of each subject = "available", rest = "locked"
 - Urgent = exam within 3 days, high = exam within 2 weeks, medium = exam within a month, low = no exam
 - estimatedMinutes should reflect topic complexity and student's hours/day
-- Generate 5-8 nodes per subject — not too many, not too few
+- Number of nodes per subject: match the actual scope of the subject
+  - Short topic / few struggles: 4-6 nodes
+  - Full university course with syllabus: 8-14 nodes
+  - If a syllabus is provided, one node per major topic/lecture — do not compress or skip
+  - Never pad with filler nodes just to hit a number
 - Include a "Mock Exam + Review" node at the end for subjects with exam dates
 
 Return a JSON array of RoadmapNode objects with these exact fields:
