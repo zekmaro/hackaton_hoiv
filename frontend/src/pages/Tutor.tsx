@@ -166,6 +166,11 @@ export default function Tutor() {
   const recognitionRef = useRef<SpeechRecognitionInstance | null>(null)
   const autoSentRef = useRef(false)
   const messagesEndRef = useRef<HTMLDivElement | null>(null)
+  // Keep a ref to messages so sendMessage doesn't need messages in its deps
+  const messagesRef = useRef<OnboardChatMessage[]>([])
+  useEffect(() => { messagesRef.current = messages }, [messages])
+  // Track the index of the assistant message being streamed
+  const streamingIndexRef = useRef<number>(-1)
 
   // ── API URL helper ──────────────────────────────────────────────────────────
 
@@ -197,12 +202,10 @@ export default function Tutor() {
       const trimmed = text.trim()
       if (!trimmed) return
 
-      const updatedMessages: OnboardChatMessage[] = [
-        ...messages,
-        { role: "user", content: trimmed },
-      ]
+      // Read current messages from ref — avoids stale closure, keeps sendMessage stable
+      const currentMessages = messagesRef.current
 
-      setMessages(updatedMessages)
+      setMessages([...currentMessages, { role: "user", content: trimmed }])
       setInput("")
       setLoading(true)
       setError(null)
@@ -217,7 +220,7 @@ export default function Tutor() {
           mode,
           topic: topic || undefined,
           nodeId: nodeId || undefined,
-          sessionHistory: messages.map((m) => ({ role: m.role, content: m.content })),
+          sessionHistory: currentMessages.map((m) => ({ role: m.role, content: m.content })),
         }
 
         const response = await fetch(resolveApiUrl("/tutor/message/stream"), {
@@ -229,13 +232,27 @@ export default function Tutor() {
         if (!response.ok) throw new Error("Failed to reach the tutor service.")
         if (!response.body) throw new Error("No response stream.")
 
-        // Add empty assistant message placeholder
-        setMessages((prev) => [...prev, { role: "assistant", content: "" }])
+        // Add empty assistant placeholder and record its index
+        setMessages((prev) => {
+          streamingIndexRef.current = prev.length
+          return [...prev, { role: "assistant", content: "" }]
+        })
 
         const reader = response.body.getReader()
         const decoder = new TextDecoder()
         let buffer = ""
         let fullText = ""
+
+        const updateStreamingMessage = (content: string) => {
+          const idx = streamingIndexRef.current
+          if (idx < 0) return
+          setMessages((prev) => {
+            if (idx >= prev.length) return prev
+            const next = [...prev]
+            next[idx] = { role: "assistant", content }
+            return next
+          })
+        }
 
         while (true) {
           const { done, value } = await reader.read()
@@ -243,52 +260,33 @@ export default function Tutor() {
 
           buffer += decoder.decode(value, { stream: true })
 
-          // SSE lines end with \n\n — process complete events
           const parts = buffer.split("\n\n")
           buffer = parts.pop() ?? ""
 
           for (const part of parts) {
             const line = part.trim()
             if (!line.startsWith("data: ")) continue
-            const json = line.slice(6)
             let event: Record<string, unknown>
-            try { event = JSON.parse(json) } catch { continue }
+            try { event = JSON.parse(line.slice(6)) } catch { continue }
 
             if (event.type === "chunk") {
               fullText += event.text as string
-              // Strip phase markers from display text as we build it
               const { clean } = parsePhaseMarker(fullText)
-              setMessages((prev) => {
-                const next = [...prev]
-                next[next.length - 1] = { role: "assistant", content: clean }
-                return next
-              })
+              updateStreamingMessage(clean)
             } else if (event.type === "clear") {
               fullText = ""
-              setMessages((prev) => {
-                const next = [...prev]
-                next[next.length - 1] = { role: "assistant", content: "" }
-                return next
-              })
+              updateStreamingMessage("")
             } else if (event.type === "done") {
-              // Detect phase from completed text
               const { phase } = parsePhaseMarker(fullText)
               const newPhase = phaseFromMarker(phase)
               if (newPhase) {
                 setCurrentPhase(newPhase)
                 if (newPhase === "complete") setLessonComplete(true)
               }
-
               const activity = event.agentActivity as AgentActivity[] | undefined
-              if (activity?.length) {
-                setAgentActivity((prev) => [...prev, ...activity])
-              }
-
+              if (activity?.length) setAgentActivity((prev) => [...prev, ...activity])
               const xp = event.xpGained as number | undefined
-              if (xp && xp > 0) {
-                setTotalXp((prev) => prev + xp)
-                setLastXp(xp)
-              }
+              if (xp && xp > 0) { setTotalXp((prev) => prev + xp); setLastXp(xp) }
             }
           }
         }
@@ -296,9 +294,11 @@ export default function Tutor() {
         setError(err instanceof Error ? err.message : "Something went wrong.")
       } finally {
         setLoading(false)
+        streamingIndexRef.current = -1
       }
     },
-    [apiBase, messages, studentId, subject, resolveApiUrl, realSubjectName, mode, topic, nodeId]
+    // No `messages` in deps — read from ref instead. sendMessage stays stable across renders.
+    [apiBase, studentId, subject, resolveApiUrl, realSubjectName, mode, topic, nodeId]
   )
 
   // ── Auto-send opening message ───────────────────────────────────────────────
@@ -313,7 +313,8 @@ export default function Tutor() {
         : `Help me understand: ${topic}`
       void sendMessage(firstMessage)
     }
-  }, [topic, isLesson, messages.length, sendMessage])
+  // sendMessage is stable (no messages in deps), so this effect only runs once when topic is set
+  }, [topic, isLesson, sendMessage])
 
   // ── Submit ──────────────────────────────────────────────────────────────────
 
