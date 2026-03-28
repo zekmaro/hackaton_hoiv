@@ -173,28 +173,6 @@ export default function Tutor() {
   const lessonTitle = useMemo(() => {
     return nodeFromStorage?.topic ?? topic
   }, [nodeFromStorage, topic])
-  const lectureOpeningLine = useMemo(
-    () =>
-      buildTutorOpeningLine({
-        studentName,
-        subject: realSubjectName,
-        mode: "lecture",
-        weakTopics: subjectWeakTopics,
-        lastSessionNote,
-      }),
-    [lastSessionNote, realSubjectName, studentName, subjectWeakTopics]
-  )
-  const practiceOpeningLine = useMemo(
-    () =>
-      buildTutorOpeningLine({
-        studentName,
-        subject: realSubjectName,
-        mode: "practice",
-        weakTopics: subjectWeakTopics,
-        lastSessionNote,
-      }),
-    [lastSessionNote, realSubjectName, studentName, subjectWeakTopics]
-  )
 
   const resolveApiUrl = useCallback(
     (path: string) => (apiBase.endsWith("/api") ? `${apiBase}${path}` : `${apiBase}/api${path}`),
@@ -269,6 +247,28 @@ export default function Tutor() {
   const [subjectWeakTopics, setSubjectWeakTopics] = useState<string[]>([])
   const [lastSessionNote, setLastSessionNote] = useState<string | null>(null)
   const [showDebrief, setShowDebrief] = useState(false)
+  const lectureOpeningLine = useMemo(
+    () =>
+      buildTutorOpeningLine({
+        studentName,
+        subject: realSubjectName,
+        mode: "lecture",
+        weakTopics: subjectWeakTopics,
+        lastSessionNote,
+      }),
+    [lastSessionNote, realSubjectName, studentName, subjectWeakTopics]
+  )
+  const practiceOpeningLine = useMemo(
+    () =>
+      buildTutorOpeningLine({
+        studentName,
+        subject: realSubjectName,
+        mode: "practice",
+        weakTopics: subjectWeakTopics,
+        lastSessionNote,
+      }),
+    [lastSessionNote, realSubjectName, studentName, subjectWeakTopics]
+  )
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" })
