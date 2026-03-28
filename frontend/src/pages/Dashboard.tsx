@@ -79,6 +79,15 @@ export default function Dashboard() {
     void loadStudyPath()
   }, [loadStudyPath])
 
+  // Re-fetch when user navigates back to this tab (e.g. after completing a lesson)
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === "visible") void loadStudyPath()
+    }
+    document.addEventListener("visibilitychange", onVisible)
+    return () => document.removeEventListener("visibilitychange", onVisible)
+  }, [loadStudyPath])
+
   const subjects = useMemo<SubjectCard[]>(() => {
     const grouped = new Map<string, RoadmapNode[]>()
     roadmap.forEach((node) => {

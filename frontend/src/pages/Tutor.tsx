@@ -217,6 +217,10 @@ export default function Tutor() {
     setError(null)
     setLastXp(null)
 
+    // Declared outside try so catch can commit partial text on error
+    let fullText = ""
+    let finalPhase: string | null = null
+
     try {
         const payload: TutorMessageRequest = {
           studentId,
@@ -245,8 +249,6 @@ export default function Tutor() {
       const reader = response.body.getReader()
       const decoder = new TextDecoder()
       let buffer = ""
-      let fullText = ""
-      let finalPhase: string | null = null
 
       while (true) {
         const { done, value } = await reader.read()
@@ -265,9 +267,6 @@ export default function Tutor() {
           if (event.type === "chunk") {
             fullText += event.text as string
             setStreamingContent(parsePhaseMarker(fullText).clean)
-          } else if (event.type === "clear") {
-            fullText = ""
-            setStreamingContent("")
           } else if (event.type === "done") {
             finalPhase = parsePhaseMarker(fullText).phase
 
@@ -289,12 +288,27 @@ export default function Tutor() {
       const newPhase = phaseFromMarker(finalPhase)
       if (newPhase) {
         setCurrentPhase(newPhase)
-        if (newPhase === "complete") setLessonComplete(true)
+        if (newPhase === "complete") {
+          setLessonComplete(true)
+          // Mark node complete in DB — unlocks next node and awards XP
+          if (nodeId && studentId) {
+            void fetch(resolveApiUrl("/lesson/complete"), {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ nodeId, studentId, score: 8 }),
+            })
+          }
+        }
         // Record where the next phase's messages start
         phaseStartIndex.current[newPhase] = committedIndex + 1
       }
 
     } catch (err) {
+      // Commit whatever text arrived before the error — never discard it
+      if (fullText.trim()) {
+        const { clean } = parsePhaseMarker(fullText)
+        setMessages((prev) => [...prev, { role: "assistant", content: clean }])
+      }
       setStreamingContent(null)
       setError(err instanceof Error ? err.message : "Something went wrong.")
     } finally {
