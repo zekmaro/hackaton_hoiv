@@ -137,10 +137,53 @@ colors: {
 
 ---
 
-## Key Docs to Read
+## mandatory: Read These Files at the Start of Every Session
 
-- Architecture: `docs/architecture.md`
+**Do this before writing a single line of code:**
+
+```
+1. Read docs/current-state.md   ← what is live, what is not built, full API shapes
+2. Read docs/api-contract.md    ← all endpoint contracts, request/response shapes
+3. Read shared/types.ts         ← all shared TypeScript types
+```
+
+These three files are the source of truth. If something is not in them, it does not exist yet.
+
+---
+
+## API Contract Rules (CRITICAL)
+
+### If you are Person B (frontend) and need a new endpoint:
+1. Write the endpoint contract to `docs/api-contract.md` first (request + response shape)
+2. Add the types to `shared/types.ts`
+3. Commit and push
+4. Tell Person A — they will build the backend
+5. Only then implement the frontend call
+6. **NEVER invent an endpoint and call it hoping the backend exists**
+
+### If you are Person A (backend) and build a new endpoint:
+1. Build the endpoint
+2. Update `docs/api-contract.md` to mark it live
+3. Update `docs/current-state.md`
+4. Add types to `shared/types.ts` if needed
+5. Commit everything together
+
+### Currently live endpoints (check docs/current-state.md for full shapes):
+- `POST /api/onboard/chat`
+- `POST /api/onboard/complete`
+- `POST /api/tutor/add`
+- `POST /api/tutor/message`
+- `GET  /api/study-path/:studentId`
+- `GET  /api/study-path/:studentId/:subject`
+- `POST /api/lesson/content`
+- `POST /api/lesson/complete`
+
+---
+
+## Key Docs
+
+- Current state + API shapes: `docs/current-state.md`
 - API contract: `docs/api-contract.md`
+- Architecture: `docs/architecture.md`
 - Design system: `docs/design-system.md`
-- Work split: `docs/work-split.md`
-- Hosting setup: `docs/hosting.md`
+- Frontend issues: `docs/frontend-issues.md`
