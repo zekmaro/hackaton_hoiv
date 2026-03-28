@@ -264,13 +264,20 @@
       shimmer 1.5s ease 0.3s 1;
   }
 
+  .roadmap-node {
+    position: relative;
+    overflow: hidden;
+  }
+
   .roadmap-node:not(.roadmap-node--locked) {
-    transition: transform 0.15s, box-shadow 0.15s;
+    transition: transform 0.15s, box-shadow 0.15s, border-color 0.15s, background-color 0.15s;
   }
 
   .roadmap-node:not(.roadmap-node--locked):hover {
     transform: translateY(-2px);
     box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
+    border-color: rgba(255, 140, 0, 0.45) !important;
+    background-color: rgba(255, 255, 255, 0.95);
   }
 
   .roadmap-node--locked {
@@ -284,20 +291,26 @@
 
   .node-hover-overlay {
     position: absolute;
-    inset: 0;
-    background: rgba(230, 126, 0, 0.06);
-    border-radius: inherit;
-    display: flex;
+    right: 10px;
+    bottom: 10px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 140, 0, 0.45);
+    background: rgba(255, 236, 153, 0.95);
+    padding: 4px 10px;
+    display: inline-flex;
     align-items: center;
     justify-content: center;
     opacity: 0;
-    transition: opacity 0.2s;
+    transform: translateY(4px);
+    transition: opacity 0.2s, transform 0.2s;
     font: 600 13px var(--font-sans);
     color: #b45309;
+    pointer-events: none;
   }
 
   .roadmap-node:hover .node-hover-overlay {
     opacity: 1;
+    transform: translateY(0);
   }
 
   .lesson-page {
